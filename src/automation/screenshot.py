@@ -26,7 +26,7 @@ class ScreenshotAutomation:
         is_fullscreen = False
         screenshots_folder = None
         try:
-            # --- New: Auto-start Kindle ---
+            # --- Auto-start Kindle ---
             self.status_callback("Attempting to start Kindle application...")
             kindle_path = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'Kindle.exe')
             
@@ -45,7 +45,7 @@ class ScreenshotAutomation:
                     time.sleep(10)
                 except Exception as e:
                     self.status_callback(f"Failed to start Kindle automatically: {e}")
-            # --- End of new code ---
+            # --- End of Auto-start Kindle ---
 
             self.status_callback("Finding Kindle app window...")
             kindle_windows = gw.getWindowsWithTitle('Kindle')
@@ -62,6 +62,12 @@ class ScreenshotAutomation:
             time.sleep(0.5)
             kindle_win.activate()
             time.sleep(1)
+
+            # --- New: Go to the beginning of the book ---
+            self.status_callback("Navigating to the beginning of the book...")
+            pyautogui.press('home')
+            time.sleep(3) # Give it time to load the beginning
+            # --- End of new code ---
 
             # Make it full screen
             pyautogui.press('f11')
@@ -102,7 +108,7 @@ class ScreenshotAutomation:
             width, height = letter
 
             for image_path in image_files:
-                img = Image.open(image_path)
+                img = Image.Image.open(image_path)
                 img_width, img_height = img.size
                 aspect = img_height / float(img_width)
                 new_width = width
