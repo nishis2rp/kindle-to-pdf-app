@@ -1,0 +1,4 @@
+venv/
+__pycache__/
+Kindle_PDFs/
+temp_screenshots_*/
