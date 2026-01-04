@@ -58,16 +58,16 @@ PC”ÅKindleƒAƒvƒŠ‚©‚çƒXƒNƒŠ[ƒ“ƒVƒ‡ƒbƒg‚ðŽB‰e‚µAKindle‚Ì–{‚ðPDFƒtƒ@ƒCƒ‹‚É•ÏŠ·‚·‚
 
 ## Žg—p•û–@
 
-1.  **Kindle for PC ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ð‹N“®‚µ‚Ü‚·B**
-2.  **ˆÈ‰º‚ÌƒRƒ}ƒ“ƒh‚ÅƒXƒNƒŠƒvƒg‚ðŽÀs‚µ‚Ü‚·:**
-    `ash
-    python main.py
-    `
+1.  **Kindle for PC ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ªŽÀs’†‚Å‚È‚¢‚±‚Æ‚ðŠm”F‚µ‚Ä‚­‚¾‚³‚¢B** (ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ªŽ©“®“I‚É‹N“®‚µ‚Ü‚·)
+2.  ƒvƒƒWƒFƒNƒgƒtƒHƒ‹ƒ_“à‚Ì dist ƒfƒBƒŒƒNƒgƒŠ‚É‚ ‚é KindleToPdf.exe ƒtƒ@ƒCƒ‹‚ðƒ_ƒuƒ‹ƒNƒŠƒbƒN‚µ‚Ä‹N“®‚µ‚Ü‚·B
+    (ƒtƒ‹ƒpƒX‚Ì—á: C:\Users\shing\OneDrive\ƒhƒLƒ…ƒƒ“ƒg\kindle-to-pdf-app\dist\KindleToPdf.exe)
 3.  ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒEƒBƒ“ƒhƒE‚ª•\Ž¦‚³‚ê‚½‚çAƒLƒƒƒvƒ`ƒƒ‚µ‚½‚¢‘ƒy[ƒW”‚ð“ü—Í‚µ‚Ü‚·B
 4.  **uStartv** ƒ{ƒ^ƒ“‚ðƒNƒŠƒbƒN‚µ‚Ü‚·B
-5.  ƒXƒNƒŠƒvƒg‚ªKindleƒEƒBƒ“ƒhƒE‚ðŒŸo‚µAÅ‘O–Ê‚É•\Ž¦‚µ‚Äƒtƒ‹ƒXƒNƒŠ[ƒ“ƒ‚[ƒh‚É‚µ‚Ü‚·B’Z‚¢‘Ò‹@ŽžŠÔ‚ÌŒãAˆ—‚ªŠJŽn‚³‚ê‚Ü‚·B
-6.  Š®—¹‚·‚é‚ÆAKindleƒAƒvƒŠ‚Íƒtƒ‹ƒXƒNƒŠ[ƒ“ƒ‚[ƒh‚ðI—¹‚µA¬Œ÷ƒƒbƒZ[ƒW‚ª•\Ž¦‚³‚ê‚Ü‚·B
+5.  ƒXƒNƒŠƒvƒg‚ªŽ©“®“I‚ÉKindle for PC‚ð’T‚µ‚Ä‹N“®‚µAŠJ‚¢‚Ä‚¢‚é‘Ð‚ÌÅ‰‚Ìƒy[ƒW‚ÉˆÚ“®‚µ‚Ü‚·B‹N“®‚Æƒy[ƒWˆÚ“®‚É10?15•b‚Ù‚Ç‚©‚©‚è‚Ü‚·B
+6.  Kindle‚ª‹N“®‚µAÅ‰‚Ìƒy[ƒW‚ÉˆÚ“®‚µ‚½‚çAƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒEƒBƒ“ƒhƒE‚ÅƒLƒƒƒvƒ`ƒƒ‚µ‚½‚¢ƒy[ƒW”‚ð“ü—Í‚µ‚Ä **uStartv** ƒ{ƒ^ƒ“‚ðƒNƒŠƒbƒN‚µ‚Ü‚·B
+7.  ˆÈ~‚ÌƒvƒƒZƒX‚ÍˆÈ‘O‚Æ“¯‚¶‚Å‚·BƒXƒNƒŠƒvƒg‚ªŽ©“®“I‚ÉKindle‚ð‘S‰æ–Ê‚É‚µAƒXƒNƒŠ[ƒ“ƒVƒ‡ƒbƒg‚ðŽB‰e‚µ‚Ü‚·B**ˆ—’†‚Íƒ}ƒEƒX‚âƒL[ƒ{[ƒh‚ð‘€ì‚µ‚È‚¢‚Å‚­‚¾‚³‚¢B**
+8.  Š®—¹‚·‚é‚ÆA¬Œ÷ƒƒbƒZ[ƒW‚ª•\Ž¦‚³‚êAPDF‚ª•Û‘¶‚³‚ê‚Ä‚¢‚é Kindle_PDFs ƒtƒHƒ‹ƒ_‚ðŠJ‚­‚©‚Ç‚¤‚©q‚Ë‚ç‚ê‚Ü‚·B
 
-¶¬‚³‚ê‚½‚·‚×‚Ä‚ÌPDF‚ÍAƒvƒƒWƒFƒNƒgƒtƒHƒ‹ƒ_“à‚Ì Kindle_PDFs ƒfƒBƒŒƒNƒgƒŠ‚É•Û‘¶‚³‚ê‚Ü‚·B
+¶¬‚³‚ê‚½‚·‚×‚Ä‚ÌPDF‚ÍAŽÀs‰Â”\ƒtƒ@ƒCƒ‹‚Æ“¯‚¶ƒfƒBƒŒƒNƒgƒŠi‚Ü‚½‚Í‚»‚ÌƒTƒuƒfƒBƒŒƒNƒgƒŠj‚Éì¬‚³‚ê‚é Kindle_PDFs ƒfƒBƒŒƒNƒgƒŠ‚É•Û‘¶‚³‚ê‚Ü‚·B
 
 ---
