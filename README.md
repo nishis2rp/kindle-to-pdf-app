@@ -1,73 +1,73 @@
-# Kindle to PDF Automation
+# Kindle to PDF 自動化ツール
 
-A simple desktop application to automate the process of converting a Kindle book from the Kindle for PC application into a PDF file by taking screenshots.
+PC版Kindleアプリからスクリーンショットを撮影し、Kindleの本をPDFファイルに変換するプロセスを自動化する、シンプルなデスクトップアプリケーションです。
 
-## Features
+## 主な機能
 
-- **Automated Screenshots:** Automatically takes screenshots of each page.
-- **Page Turning:** Simulates key presses to turn pages in the Kindle app.
-- **PDF Conversion:** Compiles the captured screenshots into a single PDF file.
-- **Simple GUI:** An easy-to-use interface built with Tkinter.
-- **Auto-Find Window:** Automatically finds the Kindle application window and brings it to the foreground.
-- **Full-Screen Mode:** Puts the Kindle app into full-screen mode for clean captures.
-
----
-
-## ?? Security Warning
-
-This application takes control of your mouse and keyboard to automate interactions with the Kindle application. 
-
-- **Do not use your mouse or keyboard** while the screenshot process is running.
-- Ensure that **no sensitive information** is visible on your screen, as the application takes full-screen captures.
-
-The author of this program is not responsible for any unintended consequences. Use at your own risk.
+- **自動スクリーンショット:** 各ページを自動的にスクリーンショット撮影します。
+- **ページめくり:** キー操作をシミュレートしてKindleアプリのページをめくります。
+- **PDF変換:** 撮影したスクリーンショットを1つのPDFファイルにまとめます。
+- **シンプルなGUI:** Tkinterで構築された、使いやすいインターフェース。
+- **ウィンドウ自動検出:** Kindleアプリのウィンドウを自動的に見つけ、最前面に表示します。
+- **フルスクリーンモード:** Kindleアプリをフルスクリーンモードにし、クリーンなキャプチャを実現します。
 
 ---
 
-## Requirements
+## ?? セキュリティに関する警告
 
-- **Operating System:** Windows
-- **Python:** 3.6+
-- **Kindle for PC:** The official desktop application from Amazon must be installed.
+このアプリケーションは、Kindleアプリケーションとの対話を自動化するために、あなたのマウスとキーボードを制御します。
+
+- **スクリーンショット処理の実行中は、マウスやキーボードを操作しないでください。**
+- このアプリケーションは画面全体のキャプチャを行うため、**機密情報が画面に表示されていないこと**を確認してください。
+
+このプログラムの作者は、意図しないいかなる結果についても責任を負いません。自己責任でご使用ください。
 
 ---
 
-## Installation & Setup
+## 要件
 
-1.  **Clone the repository:**
+- **OS:** Windows
+- **Python:** 3.6以上
+- **Kindle for PC:** Amazonの公式デスクトップアプリケーションがインストールされている必要があります。
+
+---
+
+## インストールとセットアップ
+
+1.  **リポジトリをクローンします:**
     `ash
     git clone https://github.com/nishis2rp/kindle-to-pdf-app.git
     cd kindle-to-pdf-app
     `
 
-2.  **Create and activate a Python virtual environment:**
+2.  **Python仮想環境を作成し、有効化します:**
     `ash
-    # Create the virtual environment
+    # 仮想環境の作成
     python -m venv venv
 
-    # Activate it
+    # 有効化
     .\venv\Scripts\activate
     `
 
-3.  **Install the required dependencies:**
+3.  **必要なライブラリをインストールします:**
     `ash
     pip install -r requirements.txt
     `
 
 ---
 
-## Usage
+## 使用方法
 
-1.  **Start the Kindle for PC application.** You can be logged in and have your book open, or just have the app running.
-2.  **Run the script:**
+1.  **Kindle for PC アプリケーションを起動します。**
+2.  **以下のコマンドでスクリプトを実行します:**
     `ash
     python main.py
     `
-3.  The application window will appear. Enter the total number of pages you wish to capture.
-4.  Click the **"Start"** button.
-5.  The script will find the Kindle window, bring it to the front, and put it into full-screen mode. The process will begin after a short delay.
-6.  Once finished, the Kindle app will exit full-screen mode, and a success message will appear.
+3.  アプリケーションウィンドウが表示されたら、キャプチャしたい総ページ数を入力します。
+4.  **「Start」** ボタンをクリックします。
+5.  スクリプトがKindleウィンドウを検出し、最前面に表示してフルスクリーンモードにします。短い待機時間の後、処理が開始されます。
+6.  完了すると、Kindleアプリはフルスクリーンモードを終了し、成功メッセージが表示されます。
 
-All generated PDFs will be saved in the Kindle_PDFs directory within the project folder.
+生成されたすべてのPDFは、プロジェクトフォルダ内の Kindle_PDFs ディレクトリに保存されます。
 
 ---
