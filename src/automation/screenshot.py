@@ -21,105 +21,132 @@ class ScreenshotAutomation:
     def _default_error_callback(self, message):
         print(f"Error: {message}")
 
+    def _start_kindle_app(self):
+        self.status_callback("Attempting to start Kindle application...")
+        kindle_path = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'Kindle.exe')
+        
+        if not os.path.exists(kindle_path):
+            kindle_path_pf = os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'Amazon', 'Kindle', 'Kindle.exe')
+            if os.path.exists(kindle_path_pf):
+                kindle_path = kindle_path_pf
+            else:
+                self.status_callback("Could not find Kindle.exe to auto-start. Please ensure it is running.")
+                return False, None # Will proceed and try to find window anyway if not found
+        
+        if kindle_path and os.path.exists(kindle_path):
+            try:
+                subprocess.Popen(kindle_path)
+                self.status_callback("Waiting for Kindle to start (10s)...")
+                time.sleep(10)
+                return True, None
+            except Exception as e:
+                self.status_callback(f"Failed to start Kindle automatically: {e}")
+                return False, f"Failed to start Kindle: {e}"
+        return False, None
+
+
+    def _find_activate_fullscreen_kindle(self):
+        self.status_callback("Finding Kindle app window...")
+        kindle_windows = gw.getWindowsWithTitle('Kindle')
+        if not kindle_windows:
+            self.error_callback("Kindle app window not found. Please ensure it is running and visible.")
+            return None
+
+        kindle_win = kindle_windows[0]
+        
+        self.status_callback("Activating and focusing Kindle window...")
+        
+        if kindle_win.isMinimized:
+            kindle_win.restore()
+        time.sleep(0.5)
+        kindle_win.activate()
+        time.sleep(1)
+
+        # Make it full screen
+        pyautogui.press('f11')
+        time.sleep(1) # Give it time to enter fullscreen
+        return kindle_win
+
+    def _navigate_to_first_page(self):
+        self.status_callback("Navigating to the beginning of the book (pressing 'Home' key)...")
+        pyautogui.press('home')
+        time.sleep(5) # Increased delay for loading the beginning
+
+    def _take_screenshots_and_create_pdf_core(self, kindle_win, pages, screenshots_folder):
+        image_files = []
+        for i in range(pages):
+            self.status_callback(f"Taking screenshot {i + 1}/{pages}")
+            screenshot = pyautogui.screenshot()
+            image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
+            screenshot.save(image_path)
+            image_files.append(image_path)
+
+            pyautogui.press('right')
+            time.sleep(2) # Default page turn delay
+        return image_files
+
+    def _create_pdf_from_images(self, image_files, screenshots_folder):
+        self.status_callback("Creating PDF...")
+        pdf_name = f"Kindle_Book_{time.strftime('%Y%m%d_%H%M%S')}.pdf"
+        pdf_path = os.path.join(self.output_dir, pdf_name)
+        
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        width, height = letter
+
+        for image_path in image_files:
+            img = Image.Image.open(image_path)
+            img_width, img_height = img.size
+            aspect = img_height / float(img_width)
+            new_width = width
+            new_height = new_width * aspect
+            c.setPageSize((new_width, new_height))
+            c.drawImage(image_path, 0, 0, width=new_width, height=new_height)
+            c.showPage()
+        
+        c.save()
+        return pdf_path
+
+    def _cleanup_temp_files(self, screenshots_folder):
+        if screenshots_folder and os.path.exists(screenshots_folder):
+            for f in os.listdir(screenshots_folder):
+                if f.endswith(".png"):
+                    os.remove(os.path.join(screenshots_folder, f))
+            os.rmdir(screenshots_folder)
+
     def run(self, pages: int, delay: int = 3):
         kindle_win = None
         is_fullscreen = False
         screenshots_folder = None
         try:
-            # --- Auto-start Kindle ---
-            self.status_callback("Attempting to start Kindle application...")
-            kindle_path = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'Kindle.exe')
-            
-            if not os.path.exists(kindle_path):
-                kindle_path_pf = os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'Amazon', 'Kindle', 'Kindle.exe')
-                if os.path.exists(kindle_path_pf):
-                    kindle_path = kindle_path_pf
-                else:
-                    self.status_callback("Could not find Kindle.exe to auto-start. Please ensure it is running.")
-                    kindle_path = None # Will proceed and try to find window anyway
-
-            if kindle_path:
-                try:
-                    subprocess.Popen(kindle_path)
-                    self.status_callback("Waiting for Kindle to start (10s)...")
-                    time.sleep(10)
-                except Exception as e:
-                    self.status_callback(f"Failed to start Kindle automatically: {e}")
-            # --- End of Auto-start Kindle ---
-
-            self.status_callback("Finding Kindle app window...")
-            kindle_windows = gw.getWindowsWithTitle('Kindle')
-            if not kindle_windows:
-                self.error_callback("Kindle app not found. Please make sure it is running.")
+            # Step 1: Start Kindle application
+            started_kindle, kindle_start_error = self._start_kindle_app()
+            if kindle_start_error:
                 return False, None
 
-            kindle_win = kindle_windows[0]
-            
-            self.status_callback("Activating and focusing Kindle window...")
-            
-            if kindle_win.isMinimized:
-                kindle_win.restore()
-            time.sleep(0.5)
-            kindle_win.activate()
-            time.sleep(1)
+            # Step 2: Find, activate, and fullscreen Kindle
+            kindle_win = self._find_activate_fullscreen_kindle()
+            if not kindle_win:
+                return False, None
+            is_fullscreen = True # Assume fullscreen is active now
 
-            # --- New: Go to the beginning of the book ---
-            self.status_callback("Navigating to the beginning of the book...")
-            pyautogui.press('home')
-            time.sleep(3) # Give it time to load the beginning
-            # --- End of new code ---
-
-            # Make it full screen
-            pyautogui.press('f11')
-            is_fullscreen = True
-            time.sleep(1)
+            # Step 3: Navigate to first page
+            self._navigate_to_first_page()
             
             self.status_callback(f"Starting screenshots in {delay} seconds...")
             time.sleep(delay)
             
+            # Prepare screenshot folder
             session_id = str(uuid.uuid4())
             screenshots_folder = os.path.join(self.output_dir, "temp_screenshots_" + session_id)
             os.makedirs(screenshots_folder, exist_ok=True)
             
-            image_files = []
-            for i in range(pages):
-                self.status_callback(f"Taking screenshot {i + 1}/{pages}")
-                screenshot = pyautogui.screenshot()
-                image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
-                screenshot.save(image_path)
-                image_files.append(image_path)
+            # Step 4: Take screenshots
+            image_files = self._take_screenshots_and_create_pdf_core(kindle_win, pages, screenshots_folder)
 
-                pyautogui.press('right')
-                time.sleep(2)
-
-            self.status_callback("Creating PDF...")
+            # Step 5: Create PDF
+            pdf_path = self._create_pdf_from_images(image_files, screenshots_folder)
             
-            # Exit full screen before showing success message
-            pyautogui.press('f11')
-            is_fullscreen = False
-            time.sleep(0.5)
-            if kindle_win:
-                kindle_win.activate() # Refocus after f11
-
-            pdf_name = f"Kindle_Book_{time.strftime('%Y%m%d_%H%M%S')}.pdf"
-            pdf_path = os.path.join(self.output_dir, pdf_name)
-            
-            c = canvas.Canvas(pdf_path, pagesize=letter)
-            width, height = letter
-
-            for image_path in image_files:
-                img = Image.Image.open(image_path)
-                img_width, img_height = img.size
-                aspect = img_height / float(img_width)
-                new_width = width
-                new_height = new_width * aspect
-                c.setPageSize((new_width, new_height))
-                c.drawImage(image_path, 0, 0, width=new_width, height=new_height)
-                c.showPage()
-            
-            c.save()
-            
-            self.status_callback(f"PDF saved as {pdf_name}")
+            self.status_callback(f"PDF created successfully: {os.path.basename(pdf_path)}")
             return True, pdf_path
 
         except Exception as e:
@@ -129,14 +156,10 @@ class ScreenshotAutomation:
             # Ensure we exit full screen mode in case of an error
             if is_fullscreen:
                 pyautogui.press('f11')
+                time.sleep(0.5) # Give it time to exit fullscreen
+            if kindle_win:
+                # Optionally restore window size/position, or just activate to bring back to normal view
+                kindle_win.activate() 
             
             # Clean up temporary screenshot files
-            if screenshots_folder and os.path.exists(screenshots_folder):
-                image_files_to_clean = []
-                for f in os.listdir(screenshots_folder):
-                    if f.endswith(".png"):
-                        image_files_to_clean.append(os.path.join(screenshots_folder, f))
-                for img_file in image_files_to_clean:
-                    if os.path.exists(img_file):
-                        os.remove(img_file)
-                os.rmdir(screenshots_folder)
+            self._cleanup_temp_files(screenshots_folder)
