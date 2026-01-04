@@ -7,12 +7,14 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import subprocess
+import tkinter as tk # Import tkinter for root window manipulation if needed outside of MainWindow
 
 class ScreenshotAutomation:
-    def __init__(self, output_dir="Kindle_PDFs", status_callback=None, error_callback=None):
+    def __init__(self, output_dir="Kindle_PDFs", status_callback=None, error_callback=None, root_window=None):
         self.output_dir = output_dir
         self.status_callback = status_callback if status_callback else self._default_status_callback
         self.error_callback = error_callback if error_callback else self._default_error_callback
+        self.root_window = root_window # Store reference to the main Tkinter root window
         os.makedirs(self.output_dir, exist_ok=True)
 
     def _default_status_callback(self, message):
@@ -55,7 +57,7 @@ class ScreenshotAutomation:
         kindle_win = kindle_windows[0]
         
         self.status_callback("Activating and focusing Kindle window...")
-        
+
         if kindle_win.isMinimized:
             kindle_win.restore()
         time.sleep(0.5)
@@ -89,7 +91,7 @@ class ScreenshotAutomation:
         self.status_callback("Creating PDF...")
         pdf_name = f"Kindle_Book_{time.strftime('%Y%m%d_%H%M%S')}.pdf"
         pdf_path = os.path.join(self.output_dir, pdf_name)
-        
+
         c = canvas.Canvas(pdf_path, pagesize=letter)
         width, height = letter
 
@@ -102,7 +104,7 @@ class ScreenshotAutomation:
             c.setPageSize((new_width, new_height))
             c.drawImage(image_path, 0, 0, width=new_width, height=new_height)
             c.showPage()
-        
+
         c.save()
         return pdf_path
 
@@ -131,21 +133,21 @@ class ScreenshotAutomation:
 
             # Step 3: Navigate to first page
             self._navigate_to_first_page()
-            
+
             self.status_callback(f"Starting screenshots in {delay} seconds...")
             time.sleep(delay)
-            
+
             # Prepare screenshot folder
             session_id = str(uuid.uuid4())
             screenshots_folder = os.path.join(self.output_dir, "temp_screenshots_" + session_id)
             os.makedirs(screenshots_folder, exist_ok=True)
-            
+
             # Step 4: Take screenshots
             image_files = self._take_screenshots_and_create_pdf_core(kindle_win, pages, screenshots_folder)
 
             # Step 5: Create PDF
             pdf_path = self._create_pdf_from_images(image_files, screenshots_folder)
-            
+
             self.status_callback(f"PDF created successfully: {os.path.basename(pdf_path)}")
             return True, pdf_path
 
@@ -157,9 +159,16 @@ class ScreenshotAutomation:
             if is_fullscreen:
                 pyautogui.press('f11')
                 time.sleep(0.5) # Give it time to exit fullscreen
-            if kindle_win:
-                # Optionally restore window size/position, or just activate to bring back to normal view
-                kindle_win.activate() 
             
+            # --- New: Explicitly activate GUI root window ---
+            if self.root_window:
+                # Ensure it's not minimized
+                self.root_window.deiconify() 
+                # Bring it to the top
+                self.root_window.lift()
+                # Force focus to the GUI window
+                self.root_window.focus_force()
+            # --- End of new code ---
+
             # Clean up temporary screenshot files
             self._cleanup_temp_files(screenshots_folder)

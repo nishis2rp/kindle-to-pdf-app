@@ -17,7 +17,8 @@ class KindleToPdfApp(tk.Tk):
 
         self.automation = ScreenshotAutomation(
             status_callback=self._update_status_gui,
-            error_callback=self._show_error_gui
+            error_callback=self._show_error_gui,
+            root_window=self # Pass self (the Tkinter root window)
         )
 
         # Create output directory for PDFs if it doesn't exist
