@@ -12,7 +12,11 @@ class KindleToPdfApp(tk.Tk):
         self.title("Kindle to PDF")
         self.geometry("400x250")
 
-        self.main_window = MainWindow(master=self, start_command=self._start_automation_process)
+        self.main_window = MainWindow(
+            master=self, 
+            start_command=self._start_automation_process,
+            launch_kindle_command=self.automation.launch_and_activate_kindle
+        )
         self.main_window.pack(expand=True, fill="both")
 
         self.automation = ScreenshotAutomation(

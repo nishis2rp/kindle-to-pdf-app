@@ -4,14 +4,18 @@ import os
 import subprocess
 
 class MainWindow(ttk.Frame):
-    def __init__(self, master=None, start_command=None):
+    def __init__(self, master=None, start_command=None, launch_kindle_command=None):
         super().__init__(master)
         self.master = master
         self.start_command = start_command # Callback for starting the process
+        self.launch_kindle_command = launch_kindle_command # Callback for launching Kindle app
 
         self.create_widgets()
         
     def create_widgets(self):
+        self.launch_kindle_button = ttk.Button(self, text="Launch Kindle App", command=self._on_launch_kindle_click)
+        self.launch_kindle_button.pack(pady=10)
+
         self.pages_label = ttk.Label(self, text="Number of pages:")
         self.pages_label.pack(pady=5)
 
@@ -24,6 +28,21 @@ class MainWindow(ttk.Frame):
 
         self.status_label = ttk.Label(self, text="Ready", wraplength=380)
         self.status_label.pack(pady=5)
+
+    def _on_launch_kindle_click(self):
+        if self.launch_kindle_command:
+            # Disable the launch button while Kindle is being launched
+            self.launch_kindle_button.config(state=tk.DISABLED)
+            # Run in a separate thread to keep GUI responsive
+            import threading
+            thread = threading.Thread(target=self._run_launch_kindle_in_thread)
+            thread.start()
+
+    def _run_launch_kindle_in_thread(self):
+        try:
+            self.launch_kindle_command()
+        finally:
+            self.launch_kindle_button.config(state=tk.NORMAL)
 
     def _on_start_click(self):
         try:

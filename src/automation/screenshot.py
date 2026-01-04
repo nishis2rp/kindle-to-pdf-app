@@ -47,6 +47,24 @@ class ScreenshotAutomation:
         return False, None
 
 
+    def launch_kindle_app_public(self):
+        return self._start_kindle_app()
+
+    def find_and_activate_kindle_public(self):
+        return self._find_activate_fullscreen_kindle()
+    
+    def launch_and_activate_kindle(self):
+        started_kindle, kindle_start_error = self.launch_kindle_app_public()
+        if kindle_start_error:
+            self.error_callback(kindle_start_error)
+            return None
+
+        kindle_win = self.find_and_activate_kindle_public()
+        if not kindle_win:
+            self.error_callback("Kindle window not found after launch attempt.")
+            return None
+        return kindle_win
+
     def _find_activate_fullscreen_kindle(self):
         self.status_callback("Finding Kindle app window...")
         kindle_windows = gw.getWindowsWithTitle('Kindle')
@@ -120,13 +138,8 @@ class ScreenshotAutomation:
         is_fullscreen = False
         screenshots_folder = None
         try:
-            # Step 1: Start Kindle application
-            started_kindle, kindle_start_error = self._start_kindle_app()
-            if kindle_start_error:
-                return False, None
-
-            # Step 2: Find, activate, and fullscreen Kindle
-            kindle_win = self._find_activate_fullscreen_kindle()
+            # Step 1 & 2: Start, find, activate, and fullscreen Kindle
+            kindle_win = self.launch_and_activate_kindle()
             if not kindle_win:
                 return False, None
             is_fullscreen = True # Assume fullscreen is active now
