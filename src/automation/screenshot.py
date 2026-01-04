@@ -26,11 +26,32 @@ class ScreenshotAutomation:
         is_fullscreen = False
         screenshots_folder = None
         try:
+            # --- New: Auto-start Kindle ---
+            self.status_callback("Attempting to start Kindle application...")
+            kindle_path = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'Kindle.exe')
+            
+            if not os.path.exists(kindle_path):
+                kindle_path_pf = os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'Amazon', 'Kindle', 'Kindle.exe')
+                if os.path.exists(kindle_path_pf):
+                    kindle_path = kindle_path_pf
+                else:
+                    self.status_callback("Could not find Kindle.exe to auto-start. Please ensure it is running.")
+                    kindle_path = None # Will proceed and try to find window anyway
+
+            if kindle_path:
+                try:
+                    subprocess.Popen(kindle_path)
+                    self.status_callback("Waiting for Kindle to start (10s)...")
+                    time.sleep(10)
+                except Exception as e:
+                    self.status_callback(f"Failed to start Kindle automatically: {e}")
+            # --- End of new code ---
+
             self.status_callback("Finding Kindle app window...")
             kindle_windows = gw.getWindowsWithTitle('Kindle')
             if not kindle_windows:
                 self.error_callback("Kindle app not found. Please make sure it is running.")
-                return False
+                return False, None
 
             kindle_win = kindle_windows[0]
             
@@ -42,13 +63,13 @@ class ScreenshotAutomation:
             kindle_win.activate()
             time.sleep(1)
 
-            self.status_callback(f"Starting in {delay} seconds... Focus Kindle app now!")
-            time.sleep(delay)
-
             # Make it full screen
             pyautogui.press('f11')
             is_fullscreen = True
             time.sleep(1)
+            
+            self.status_callback(f"Starting screenshots in {delay} seconds...")
+            time.sleep(delay)
             
             session_id = str(uuid.uuid4())
             screenshots_folder = os.path.join(self.output_dir, "temp_screenshots_" + session_id)
