@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from ttkthemes import ThemedTk
 from .gui.main_window import MainWindow
-from .automation.screenshot import ScreenshotAutomation
+from .automation.automation_coordinator import AutomationCoordinator
 
 def main():
     root = ThemedTk(theme="adapta")
@@ -19,7 +19,7 @@ def main():
     main_window_frame = MainWindow(master=root)
     main_window_frame.pack(fill=tk.BOTH, expand=True)
 
-    automation = ScreenshotAutomation(
+    automation = AutomationCoordinator(
         status_callback=main_window_frame.update_status,
         error_callback=main_window_frame.show_error,
         success_callback=main_window_frame.show_success_dialog,
@@ -28,7 +28,6 @@ def main():
     )
 
     main_window_frame.start_command = automation.run
-    main_window_frame.launch_kindle_command = automation.launch_and_activate_kindle
 
 
     root.mainloop()
