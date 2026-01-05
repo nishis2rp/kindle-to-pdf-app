@@ -92,6 +92,9 @@ class ScreenshotAutomation:
         kindle_win.activate()
         time.sleep(self.WINDOW_ACTIVATION_DELAY)
 
+        # Make it full screen
+        pyautogui.press('f11')
+        time.sleep(self.FULLSCREEN_DELAY) # Give it time to enter fullscreen
         return kindle_win
 
     def _navigate_to_first_page(self):
@@ -104,14 +107,9 @@ class ScreenshotAutomation:
         image_files = []
         for i in range(pages):
             self.status_callback(f"Taking screenshot {i + 1}/{pages}")
-            # Take a screenshot of the whole screen
             screenshot = pyautogui.screenshot()
-            # Crop the screenshot to the Kindle window
-            crop_box = (kindle_win.left, kindle_win.top, kindle_win.left + kindle_win.width, kindle_win.top + kindle_win.height)
-            cropped_screenshot = screenshot.crop(crop_box)
-            
             image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
-            cropped_screenshot.save(image_path)
+            screenshot.save(image_path)
             image_files.append(image_path)
 
             pyautogui.press('right')
@@ -148,12 +146,14 @@ class ScreenshotAutomation:
 
     def run(self, pages: int, delay: int = 3):
         kindle_win = None
+        is_fullscreen = False
         screenshots_folder = None
         try:
             # Step 1 & 2: Start, find, activate, and fullscreen Kindle
             kindle_win = self.launch_and_activate_kindle()
             if not kindle_win:
                 return False, None
+            is_fullscreen = True # Assume fullscreen is active now
 
             self.status_callback(f"Starting screenshots in {delay} seconds...")
             time.sleep(delay)
@@ -177,6 +177,11 @@ class ScreenshotAutomation:
             self.error_callback(f"An error occurred: {str(e)}")
             return False, None
         finally:
+            # Ensure we exit full screen mode in case of an error
+            if is_fullscreen:
+                pyautogui.press('f11')
+                time.sleep(self.EXIT_FULLSCREEN_DELAY) # Give it time to exit fullscreen
+
             # --- New: Explicitly activate GUI root window ---
             if self.root_window:
                 # Ensure it's not minimized
