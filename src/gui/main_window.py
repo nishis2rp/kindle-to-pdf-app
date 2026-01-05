@@ -7,8 +7,10 @@ class MainWindow(ttk.Frame):
     def __init__(self, master=None, start_command=None, launch_kindle_command=None):
         super().__init__(master)
         self.master = master
-        self.start_command = start_command # Callback for starting the process
-        self.launch_kindle_command = launch_kindle_command # Callback for launching Kindle app
+        self.start_command = start_command
+        self.launch_kindle_command = launch_kindle_command
+        self.on_success = None
+        self.on_completion = None
 
         self.create_widgets()
         
@@ -31,9 +33,8 @@ class MainWindow(ttk.Frame):
 
     def _on_launch_kindle_click(self):
         if self.launch_kindle_command:
-            # Disable the launch button while Kindle is being launched
             self.launch_kindle_button.config(state=tk.DISABLED)
-            # Run in a separate thread to keep GUI responsive
+            self.start_button.config(state=tk.DISABLED)
             import threading
             thread = threading.Thread(target=self._run_launch_kindle_in_thread)
             thread.start()
@@ -42,7 +43,11 @@ class MainWindow(ttk.Frame):
         try:
             self.launch_kindle_command()
         finally:
-            self.launch_kindle_button.config(state=tk.NORMAL)
+            self.master.after(0, self._enable_buttons_after_launch)
+
+    def _enable_buttons_after_launch(self):
+        self.launch_kindle_button.config(state=tk.NORMAL)
+        self.start_button.config(state=tk.NORMAL)
 
     def _on_start_click(self):
         try:
@@ -55,8 +60,19 @@ class MainWindow(ttk.Frame):
             return
 
         self.start_button.config(state=tk.DISABLED)
+        self.launch_kindle_button.config(state=tk.DISABLED)
         if self.start_command:
-            self.start_command(pages)
+            import threading
+            thread = threading.Thread(target=self._run_start_in_thread, args=(pages,))
+            thread.start()
+
+    def _run_start_in_thread(self, pages):
+        self.start_command(pages)
+        self.master.after(0, self._enable_buttons_after_start)
+
+    def _enable_buttons_after_start(self):
+        self.start_button.config(state=tk.NORMAL)
+        self.launch_kindle_button.config(state=tk.NORMAL)
 
     def update_status(self, message):
         self.status_label.config(text=message)

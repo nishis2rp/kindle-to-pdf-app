@@ -10,11 +10,21 @@ import subprocess
 import tkinter as tk # Import tkinter for root window manipulation if needed outside of MainWindow
 
 class ScreenshotAutomation:
-    def __init__(self, output_dir="Kindle_PDFs", status_callback=None, error_callback=None, root_window=None):
+    KINDLE_STARTUP_DELAY = 10
+    WINDOW_RESTORE_DELAY = 0.5
+    WINDOW_ACTIVATION_DELAY = 1
+    FULLSCREEN_DELAY = 1
+    NAVIGATION_DELAY = 5
+    PAGE_TURN_DELAY = 2
+    EXIT_FULLSCREEN_DELAY = 0.5
+
+    def __init__(self, output_dir="Kindle_PDFs", status_callback=None, error_callback=None, success_callback=None, completion_callback=None, root_window=None):
         self.output_dir = output_dir
         self.status_callback = status_callback if status_callback else self._default_status_callback
         self.error_callback = error_callback if error_callback else self._default_error_callback
-        self.root_window = root_window # Store reference to the main Tkinter root window
+        self.success_callback = success_callback if success_callback else self._default_success_callback
+        self.completion_callback = completion_callback if completion_callback else self._default_completion_callback
+        self.root_window = root_window
         os.makedirs(self.output_dir, exist_ok=True)
 
     def _default_status_callback(self, message):
@@ -22,6 +32,12 @@ class ScreenshotAutomation:
 
     def _default_error_callback(self, message):
         print(f"Error: {message}")
+
+    def _default_success_callback(self, pdf_path):
+        print(f"Success: PDF created at {pdf_path}")
+
+    def _default_completion_callback(self):
+        print("Automation complete.")
 
     def _start_kindle_app(self):
         self.status_callback("Attempting to start Kindle application...")
@@ -38,8 +54,8 @@ class ScreenshotAutomation:
         if kindle_path and os.path.exists(kindle_path):
             try:
                 subprocess.Popen(kindle_path)
-                self.status_callback("Waiting for Kindle to start (10s)...")
-                time.sleep(10)
+                self.status_callback(f"Waiting for Kindle to start ({self.KINDLE_STARTUP_DELAY}s)...")
+                time.sleep(self.KINDLE_STARTUP_DELAY)
                 return True, None
             except Exception as e:
                 self.status_callback(f"Failed to start Kindle automatically: {e}")
@@ -47,19 +63,13 @@ class ScreenshotAutomation:
         return False, None
 
 
-    def launch_kindle_app_public(self):
-        return self._start_kindle_app()
-
-    def find_and_activate_kindle_public(self):
-        return self._find_activate_fullscreen_kindle()
-    
     def launch_and_activate_kindle(self):
-        started_kindle, kindle_start_error = self.launch_kindle_app_public()
+        started_kindle, kindle_start_error = self._start_kindle_app()
         if kindle_start_error:
             self.error_callback(kindle_start_error)
             return None
 
-        kindle_win = self.find_and_activate_kindle_public()
+        kindle_win = self._find_activate_fullscreen_kindle()
         if not kindle_win:
             self.error_callback("Kindle window not found after launch attempt.")
             return None
@@ -78,19 +88,19 @@ class ScreenshotAutomation:
 
         if kindle_win.isMinimized:
             kindle_win.restore()
-        time.sleep(0.5)
+        time.sleep(self.WINDOW_RESTORE_DELAY)
         kindle_win.activate()
-        time.sleep(1)
+        time.sleep(self.WINDOW_ACTIVATION_DELAY)
 
         # Make it full screen
         pyautogui.press('f11')
-        time.sleep(1) # Give it time to enter fullscreen
+        time.sleep(self.FULLSCREEN_DELAY) # Give it time to enter fullscreen
         return kindle_win
 
     def _navigate_to_first_page(self):
         self.status_callback("Navigating to the beginning of the book (pressing 'Home' key)...")
         pyautogui.press('home')
-        time.sleep(5) # Increased delay for loading the beginning
+        time.sleep(self.NAVIGATION_DELAY) # Increased delay for loading the beginning
 
     def _take_screenshots_and_create_pdf_core(self, kindle_win, pages, screenshots_folder):
         image_files = []
@@ -102,7 +112,7 @@ class ScreenshotAutomation:
             image_files.append(image_path)
 
             pyautogui.press('right')
-            time.sleep(2) # Default page turn delay
+            time.sleep(self.PAGE_TURN_DELAY) # Default page turn delay
         return image_files
 
     def _create_pdf_from_images(self, image_files, screenshots_folder):
@@ -114,7 +124,7 @@ class ScreenshotAutomation:
         width, height = letter
 
         for image_path in image_files:
-            img = Image.Image.open(image_path)
+            img = Image.open(image_path)
             img_width, img_height = img.size
             aspect = img_height / float(img_width)
             new_width = width
@@ -162,6 +172,7 @@ class ScreenshotAutomation:
             pdf_path = self._create_pdf_from_images(image_files, screenshots_folder)
 
             self.status_callback(f"PDF created successfully: {os.path.basename(pdf_path)}")
+            self.success_callback(pdf_path)
             return True, pdf_path
 
         except Exception as e:
@@ -171,7 +182,7 @@ class ScreenshotAutomation:
             # Ensure we exit full screen mode in case of an error
             if is_fullscreen:
                 pyautogui.press('f11')
-                time.sleep(0.5) # Give it time to exit fullscreen
+                time.sleep(self.EXIT_FULLSCREEN_DELAY) # Give it time to exit fullscreen
             
             # --- New: Explicitly activate GUI root window ---
             if self.root_window:
@@ -185,3 +196,4 @@ class ScreenshotAutomation:
 
             # Clean up temporary screenshot files
             self._cleanup_temp_files(screenshots_folder)
+            self.completion_callback()
