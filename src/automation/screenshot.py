@@ -8,6 +8,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import subprocess
 import tkinter as tk # Import tkinter for root window manipulation if needed outside of MainWindow
+import mss
 
 class ScreenshotAutomation:
     KINDLE_STARTUP_DELAY = 10
@@ -62,25 +63,38 @@ class ScreenshotAutomation:
                 return False, f"Failed to start Kindle: {e}"
         return False, None
 
+    def _get_monitor_for_window(self, window):
+        with mss.mss() as sct:
+            # sct.monitors[0] is the virtual screen of all monitors, so skip it.
+            for monitor in sct.monitors[1:]:
+                window_center_x = window.left + window.width / 2
+                window_center_y = window.top + window.height / 2
+                if (monitor["left"] <= window_center_x < monitor["left"] + monitor["width"] and
+                    monitor["top"] <= window_center_y < monitor["top"] + monitor["height"]):
+                    return monitor
+        # Fallback to the primary monitor if no monitor is found
+        if len(sct.monitors) > 1:
+            return sct.monitors[1]
+        return None
 
     def launch_and_activate_kindle(self):
         started_kindle, kindle_start_error = self._start_kindle_app()
         if kindle_start_error:
             self.error_callback(kindle_start_error)
-            return None
+            return None, None
 
-        kindle_win = self._find_activate_fullscreen_kindle()
+        kindle_win, monitor = self._find_activate_fullscreen_kindle()
         if not kindle_win:
             self.error_callback("Kindle window not found after launch attempt.")
-            return None
-        return kindle_win
+            return None, None
+        return kindle_win, monitor
 
     def _find_activate_fullscreen_kindle(self):
         self.status_callback("Finding Kindle app window...")
         kindle_windows = gw.getWindowsWithTitle('Kindle')
         if not kindle_windows:
             self.error_callback("Kindle app window not found. Please ensure it is running and visible.")
-            return None
+            return None, None
 
         kindle_win = kindle_windows[0]
         
@@ -92,28 +106,32 @@ class ScreenshotAutomation:
         kindle_win.activate()
         time.sleep(self.WINDOW_ACTIVATION_DELAY)
 
+        monitor = self._get_monitor_for_window(kindle_win)
+
         # Make it full screen
         pyautogui.press('f11')
         time.sleep(self.FULLSCREEN_DELAY) # Give it time to enter fullscreen
-        return kindle_win
+        return kindle_win, monitor
 
     def _navigate_to_first_page(self):
         self.status_callback("Navigating to the beginning of the book (pressing 'Home' key)...")
         pyautogui.press('home')
         time.sleep(self.NAVIGATION_DELAY) # Increased delay for loading the beginning
 
-    def _take_screenshots_and_create_pdf_core(self, kindle_win, pages, screenshots_folder):
+    def _take_screenshots_and_create_pdf_core(self, monitor, pages, screenshots_folder):
         self._navigate_to_first_page()
         image_files = []
-        for i in range(pages):
-            self.status_callback(f"Taking screenshot {i + 1}/{pages}")
-            screenshot = pyautogui.screenshot()
-            image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
-            screenshot.save(image_path)
-            image_files.append(image_path)
+        with mss.mss() as sct:
+            for i in range(pages):
+                self.status_callback(f"Taking screenshot {i + 1}/{pages}")
+                sct_img = sct.grab(monitor)
+                img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
+                image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
+                img.save(image_path)
+                image_files.append(image_path)
 
-            pyautogui.press('right')
-            time.sleep(self.PAGE_TURN_DELAY) # Default page turn delay
+                pyautogui.press('right')
+                time.sleep(self.PAGE_TURN_DELAY) # Default page turn delay
         return image_files
 
     def _create_pdf_from_images(self, image_files, screenshots_folder):
@@ -150,7 +168,7 @@ class ScreenshotAutomation:
         screenshots_folder = None
         try:
             # Step 1 & 2: Start, find, activate, and fullscreen Kindle
-            kindle_win = self.launch_and_activate_kindle()
+            kindle_win, monitor = self.launch_and_activate_kindle()
             if not kindle_win:
                 return False, None
             is_fullscreen = True # Assume fullscreen is active now
@@ -164,7 +182,7 @@ class ScreenshotAutomation:
             os.makedirs(screenshots_folder, exist_ok=True)
 
             # Step 4: Take screenshots
-            image_files = self._take_screenshots_and_create_pdf_core(kindle_win, pages, screenshots_folder)
+            image_files = self._take_screenshots_and_create_pdf_core(monitor, pages, screenshots_folder)
 
             # Step 5: Create PDF
             pdf_path = self._create_pdf_from_images(image_files, screenshots_folder)
