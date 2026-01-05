@@ -104,9 +104,14 @@ class ScreenshotAutomation:
         image_files = []
         for i in range(pages):
             self.status_callback(f"Taking screenshot {i + 1}/{pages}")
-            screenshot = pyautogui.screenshot(region=(kindle_win.left, kindle_win.top, kindle_win.width, kindle_win.height))
+            # Take a screenshot of the whole screen
+            screenshot = pyautogui.screenshot()
+            # Crop the screenshot to the Kindle window
+            crop_box = (kindle_win.left, kindle_win.top, kindle_win.left + kindle_win.width, kindle_win.top + kindle_win.height)
+            cropped_screenshot = screenshot.crop(crop_box)
+            
             image_path = os.path.join(screenshots_folder, f"page_{i + 1}.png")
-            screenshot.save(image_path)
+            cropped_screenshot.save(image_path)
             image_files.append(image_path)
 
             pyautogui.press('right')
