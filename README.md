@@ -1,157 +1,157 @@
-# Kindle to PDF Automation App
+# Kindle to PDF 自動化アプリ
 
-This application automates the Kindle for PC desktop application to capture screenshots of all pages of a book and then combines these screenshots into a single, searchable (image-based) PDF file. It provides a user-friendly graphical interface to configure the automation process.
+このアプリケーションは、Kindle for PC デスクトップアプリケーションを自動操作し、書籍の全ページのスクリーンショットをキャプチャして、それらを単一の検索可能な（画像ベースの）PDFファイルに結合します。自動化プロセスを設定するためのユーザーフレンドリーなグラフィカルインターフェースを提供します。
 
-## Features
+## 機能
 
-*   **Automated Screenshot Capture:** Automatically navigates through Kindle pages and captures screenshots of the book content.
-*   **Dynamic Region Detection:** Intelligently identifies the book's reading area on the screen, adapting to different window sizes and resolutions.
-*   **Manual Region Selection:** Allows users to manually define the capture area by dragging a rectangle on the screen for precise control.
-*   **Test Capture Functionality:** Provides a "Test Capture" button to verify the selected capture region before starting the full automation.
-*   **Configurable Page Turning:** Supports automatic detection of reading direction (Left-to-Right or Right-to-Left) or manual selection.
-*   **Adjustable Delays:** Configurable delays for page turns, Kindle startup, window activation, etc., to ensure stability and accuracy.
-*   **End-of-Book Detection:** Automatically stops when the end of the book is detected based on consecutive identical pages, with adjustable sensitivity.
-*   **Image Optimization:** Options to optimize captured images (grayscale conversion, resizing) before PDF creation to reduce file size.
-*   **Customizable Output:** Allows users to specify the output folder and filename for the generated PDF.
-*   **Image Format and Quality Control:** Choose between PNG (high quality) or JPEG (lightweight with adjustable compression) for images within the PDF.
-*   **Pause/Resume & Stop Control:** Full control over the automation process with Start/Pause/Resume buttons.
-*   **Emergency Stop Hotkey:** Global hotkeys (`Esc` or `Ctrl+Q`) to immediately halt the automation.
-*   **Real-time Monitoring:** Features a progress bar, a log area for status updates, and a live preview of captured pages.
-*   **Disk Space Check:** Verifies sufficient disk space before starting the capture process.
-*   **OS Sleep Prevention:** Prevents the operating system from going to sleep or turning off the display during automation.
-*   **Persistent Settings:** All user preferences are saved and loaded automatically from `config.json`.
-
----
-
-## Security and Usage Considerations
-
-This application interacts with the Kindle for PC application by simulating mouse and keyboard inputs.
-
-*   **DRM Compliance:** This system captures what is displayed on your screen and does NOT circumvent Digital Rights Management (DRM). It adheres to fair use principles by capturing legally displayed content.
-*   **Mouse and Keyboard Occupation:** The PC cannot be used for other tasks during the automation process. **Do not move the mouse or type on the keyboard while the script is running.** Consider running it on a dedicated virtual machine (VM) or a secondary PC.
-*   **Kindle Window State:** Ensure the Kindle for PC application is in a state where the book content is clearly visible. The application will attempt to bring the Kindle window to the foreground and maximize it.
-*   **Output Folder Visibility:** Ensure the `Kindle_PDFs` output folder (or your custom selected folder) is accessible and has sufficient write permissions.
+*   **自動スクリーンショットキャプチャ:** Kindleのページを自動的にナビゲートし、書籍コンテンツのスクリーンショットをキャプチャします。
+*   **動的な領域検出:** Kindleウィンドウ内の書籍の読書領域をインテリジェントに識別し、さまざまなウィンドウサイズや解像度に適応します。
+*   **手動領域選択:** マウスで画面上のKindle読書領域をドラッグして、キャプチャ領域を手動で正確に定義できます。
+*   **テストキャプチャ機能:** 完全な自動化を開始する前に、選択したキャプチャ領域を確認するための「テストキャプチャ」ボタンを提供します。
+*   **設定可能なページめくり:** 読書方向（左から右、または右から左）の自動検出、または手動選択をサポートします。
+*   **調整可能な遅延:** ページのめくり、Kindleの起動、ウィンドウのアクティブ化などの遅延を構成でき、安定性と精度を確保します。
+*   **終端検出:** 連続する同一ページに基づいて書籍の終端を自動的に検出し、自動的に停止します。感度は調整可能です。
+*   **画像最適化:** PDF作成前にキャプチャした画像を最適化（グレースケール変換、リサイズ）して、ファイルサイズを削減するオプション。
+*   **出力のカスタマイズ:** 生成されるPDFの出力フォルダーとファイル名を指定できます。
+*   **画像形式と品質管理:** PDF内の画像にPNG（高品質）またはJPEG（軽量で圧縮率調整可能）を選択できます。
+*   **一時停止/再開 & 停止制御:** 開始/一時停止/再開ボタンで自動化プロセスを完全に制御します。
+*   **緊急停止ホットキー:** グローバルホットキー（`Esc`または`Ctrl + Q`）で自動化を即座に停止します。
+*   **リアルタイム監視:** 進捗バー、ステータス更新用のログエリア、キャプチャされたページのライブプレビューを表示します。
+*   **ディスク容量チェック:** キャプチャプロセスを開始する前に、十分なディスク容量があることを確認します。
+*   **OSスリープ防止:** 自動化中にオペレーティングシステムがスリープ状態になったり、ディスプレイがオフになったりするのを防ぎます。
+*   **設定の永続化:** すべてのユーザー設定は `config.json` ファイルに自動的に保存およびロードされます。
 
 ---
 
-## Requirements
+## セキュリティと使用上の注意
 
-*   **OS:** Windows 10/11 (64-bit AMD/Intel processor is recommended due to `opencv-python` dependencies).
-*   **Python:** Python 3.10 or 3.11 (AMD64/Intel 64-bit version recommended).
-*   **Kindle for PC:** The Amazon Kindle for PC desktop application must be installed.
-*   **Libraries:** All Python dependencies listed in `requirements.txt`.
+このアプリケーションは、マウスとキーボードの入力をシミュレートすることでKindle for PCアプリケーションと対話します。
+
+*   **DRMコンプライアンス:** このシステムは画面に表示されているものをキャプチャするものであり、デジタル著作権管理（DRM）を回避するものではありません。合法的に表示されているコンテンツをキャプチャすることにより、フェアユースの原則に準拠しています。
+*   **マウスとキーボードの占有:** 自動化プロセス中はPCを他のタスクに使用できません。**スクリプトの実行中はマウスを動かしたり、キーボードを操作したりしないでください。** 専用の仮想マシン（VM）またはセカンダリPCで実行することを検討してください。
+*   **Kindleウィンドウの状態:** Kindle for PCアプリケーションが書籍コンテンツが明確に表示されている状態であることを確認してください。アプリケーションはKindleウィンドウを前面に表示し、最大化しようとします。
+*   **出力フォルダーの可視性:** `Kindle_PDFs` 出力フォルダー（またはカスタムで選択したフォルダー）がアクセス可能であり、十分な書き込み権限があることを確認してください。
 
 ---
 
-## Installation and Setup
+## 必要条件
 
-1.  **Clone the repository:**
+*   **OS:** Windows 10/11 (64ビット AMD/Intelプロセッサを推奨、`opencv-python`の依存関係のため)。
+*   **Python:** Python 3.10 または 3.11 (AMD64/Intel 64ビット版を推奨)。
+*   **Kindle for PC:** Amazon Kindle for PC デスクトップアプリケーションがインストールされている必要があります。
+*   **ライブラリ:** `requirements.txt` に記載されているすべてのPython依存関係。
+
+---
+
+## インストールとセットアップ
+
+1.  **リポジトリをクローンします:**
     ```bash
     git clone https://github.com/nishis2rp/kindle-to-pdf-app.git
     cd kindle-to-pdf-app
     ```
 
-2.  **Create and activate a Python virtual environment:**
+2.  **Python 仮想環境を作成してアクティブ化します:**
     ```bash
-    # Create virtual environment (ensure you are using Python 3.11 or 3.10 AMD64)
+    # 仮想環境を作成します (Python 3.11 または 3.10 AMD64 を使用していることを確認してください)
     py -3.11 -m venv venv 
-    # Activate virtual environment
+    # 仮想環境をアクティブ化します
     .\venv\Scripts\activate
     ```
 
-3.  **Install the required libraries:**
+3.  **必要なライブラリをインストールします:**
     ```bash
     pip install -r requirements.txt
     ```
 
 ---
 
-## How to Use (Manual)
+## 使用方法 (マニュアル)
 
-### Launching the Application
+### アプリケーションの起動
 
-You can launch the application in two ways:
+アプリケーションは2つの方法で起動できます。
 
-1.  **From the Python script:**
+1.  **Python スクリプトから:**
     ```bash
     .\venv\Scripts\python.exe main.py
     ```
-2.  **Using the generated executable:**
-    Navigate to the `dist` folder in your project directory and double-click `main.exe`.
+2.  **生成された実行可能ファイルを使用:**
+    プロジェクトディレクトリ内の `dist` フォルダーに移動し、`main.exe` をダブルクリックします。
 
-### GUI Overview
+### GUIの概要
 
-The application features a two-pane layout:
+アプリケーションは2ペインレイアウトを採用しています。
 
-*   **Left Pane (Settings):** Contains all configurable parameters for the automation.
-*   **Right Pane (Monitoring):** Displays real-time progress, a live preview of captured pages, and a detailed log.
+*   **左ペイン (設定):** 自動化のためのすべての設定可能なパラメーターが含まれています。
+*   **右ペイン (監視):** リアルタイムの進捗、キャプチャされたページのライブプレビュー、および詳細なログが表示されます。
 
-### Settings Explanation (Left Pane)
+### 設定の説明 (左ペイン)
 
-#### 1. Target Settings
+#### 1. ターゲット設定
 
-*   **Region Detection Mode:**
-    *   **Automatic:** The application will attempt to automatically detect the book's reading area within the Kindle window using image processing.
-    *   **Manual:** Allows you to manually specify the capture region.
-*   **Select Area... Button:** (Enabled when "Manual" mode is selected)
-    *   Click this button. Your screen will become semi-transparent. Drag your mouse to draw a rectangle around the Kindle book's reading content. Release the mouse button to confirm. Press `Esc` to cancel.
-*   **Test Capture Button:**
-    *   Click to take a single screenshot of the currently defined capture region (either automatically detected or manually selected) and display it in the "Preview" area. Use this to verify your region settings before a full run.
-*   **Region Display:** Shows the coordinates (`x, y, width, height`) of the currently selected manual region.
+*   **領域検出モード:**
+    *   **Automatic:** アプリケーションは、画像処理を使用してKindleウィンドウ内の書籍の読書領域を自動的に検出しようとします。
+    *   **Manual:** キャプチャ領域を手動で指定できます。
+*   **エリアを選択... ボタン:** (「Manual」モード選択時に有効)
+    *   このボタンをクリックします。画面が半透明になります。マウスをドラッグしてKindle書籍の読書コンテンツの周りに長方形を描画します。マウスボタンを離して確定します。`Esc`を押してキャンセルします。
+*   **テストキャプチャボタン:**
+    *   クリックすると、現在定義されているキャプチャ領域（自動検出または手動選択）のスクリーンショットを1枚撮影し、「プレビュー」エリアに表示します。完全な実行の前に、この機能を使用して領域設定を確認してください。
+*   **領域表示:** 現在選択されている手動領域の座標（`x, y, width, height`）を表示します。
 
-#### 2. Action Parameters
+#### 2. 動作パラメーター
 
-*   **Page Turn Direction:**
-    *   **Automatic:** The application will try to determine the correct page-turning direction (Left-to-Right or Right-to-Left) by testing key presses.
-    *   **LtoR (Left-to-Right):** Forces page turns using the 'left arrow' key (typical for English books).
-    *   **RtoL (Right-to-Left):** Forces page turns using the 'right arrow' key (typical for Japanese manga/vertical text).
-*   **Max Pages to Capture:**
-    *   Set the maximum number of pages to capture. This acts as a safety limit to prevent infinite loops in case end-of-book detection fails.
-*   **End Detect Sensitivity (>=1):**
-    *   Specifies how many consecutive identical pages are required to trigger the end-of-book detection. A value of `3` is usually sufficient. Higher values make detection less sensitive (requires more identical pages).
+*   **ページめくり方向:**
+    *   **Automatic:** アプリケーションは、キープレスをテストすることで正しいページめくり方向（左から右、または右から左）を判断しようとします。
+    *   **LtoR (左から右):** '左矢印'キーを使用してページをめくります（英語の書籍で一般的）。
+    *   **RtoL (右から左):** '右矢印'キーを使用してページをめくります（日本語の漫画/縦書きテキストで一般的）。
+*   **最大キャプチャページ数:**
+    *   キャプチャする最大ページ数を設定します。これは、終端検出が失敗した場合の無限ループを防ぐための安全限界として機能します。
+*   **終端検出感度 (>=1):**
+    *   書籍の終端検出をトリガーするために必要な連続する同一ページ数を指定します。通常は `3` で十分です。値が大きいほど検出感度が低くなります（より多くの同一ページが必要）。
 
-#### 3. Output Settings
+#### 3. 出力設定
 
-*   **Output Folder:** The directory where the final PDF and temporary images will be saved. Click "Browse..." to select a folder.
-*   **Filename:** The name of the generated PDF file (e.g., `My_Kindle_Book.pdf`).
-*   **Image Format:**
-    *   **PNG:** High-quality, lossless image format. Results in larger PDF files.
-    *   **JPEG:** Lossy compression, results in smaller PDF files.
-*   **JPEG Quality (0-100):** (Enabled when "JPEG" format is selected)
-    *   Adjust the compression quality for JPEG images. 100 is highest quality (least compression), 0 is lowest quality (most compression).
-*   **Optimize Images (Grayscale/Resize):**
-    *   If checked, captured images will be converted to grayscale and resized (width limited to 800px) before being embedded in the PDF. This can significantly reduce PDF file size.
+*   **出力フォルダー:** 最終的なPDFおよび一時画像が保存されるディレクトリです。「参照...」ボタンをクリックしてフォルダーを選択します。
+*   **ファイル名:** 生成されるPDFファイルの名前です（例: `My_Kindle_Book.pdf`）。
+*   **画像形式:**
+    *   **PNG:** 高品質でロスレスな画像形式です。PDFファイルサイズは大きくなります。
+    *   **JPEG:** ロッシー圧縮形式で、PDFファイルサイズは小さくなります。
+*   **JPEG品質 (0-100):** (「JPEG」形式選択時に有効)
+    *   JPEG画像の圧縮品質を調整します。100が最高品質（最小圧縮）、0が最低品質（最大圧縮）です。
+*   **画像を最適化 (グレースケール/リサイズ):**
+    *   チェックすると、キャプチャした画像はPDFに埋め込まれる前にグレースケールに変換され、リサイズされます（幅を800pxに制限）。これにより、PDFファイルサイズを大幅に削減できます。
 
-#### 4. Delay Settings (seconds)
+#### 4. 遅延設定 (秒)
 
-Adjust these values based on your PC's performance and Kindle's responsiveness to ensure stable automation.
+PCのパフォーマンスとKindleの応答性に基づいてこれらの値を調整し、安定した自動化を確保してください。
 
-*   **Page Turn:** Delay after pressing a page-turn key before capturing the next page.
-*   **Kindle Startup:** Initial delay after launching Kindle.
-*   **Window Activation:** Delay after activating the Kindle window.
-*   **Fullscreen Toggle:** Delay after pressing F11 to toggle fullscreen.
-*   **Go to Home:** Delay after navigating to the beginning of the book.
+*   **ページめくり:** ページめくりキーを押してから次のページをキャプチャするまでの遅延。
+*   **Kindle起動:** Kindleを起動した後の初期遅延。
+*   **ウィンドウアクティブ化:** Kindleウィンドウをアクティブ化した後の遅延。
+*   **フルスクリーントグル:** F11を押してフルスクリーンを切り替えた後の遅延。
+*   **ホームへ移動:** 書籍の先頭に移動した後の遅延。
 
-### Execution & Monitoring (Right Pane)
+### 実行と監視 (右ペイン)
 
-*   **Start Automation Button:** Initiates the capture process. Changes to "Pause" and then "Resume" during operation.
-*   **Stop Button:** Immediately halts the automation process.
-*   **Open Output Folder Button:** Opens the configured output directory.
-*   **Progress Bar:** Visually displays the current page being processed out of the total estimated pages.
-*   **Preview:** Shows a live thumbnail of the most recently captured page.
-*   **Log:** A text area displaying real-time status updates, warnings, and errors.
+*   **自動化開始ボタン:** キャプチャプロセスを開始します。操作中は「一時停止」に変わり、その後「再開」に変わります。
+*   **停止ボタン:** 自動化プロセスを即座に停止します。
+*   **出力フォルダーを開くボタン:** 設定された出力ディレクトリを開きます。
+*   **進捗バー:** 処理中の現在のページ数と推定総ページ数を視覚的に表示します。
+*   **プレビュー:** 最新のキャプチャされたページのライブサムネイルを表示します。
+*   **ログ:** リアルタイムのステータス更新、警告、エラーを表示するテキストエリア。
 
-### Emergency Stop Hotkey
+### 緊急停止ホットキー
 
-*   At any point during the automation, you can press `Esc` or `Ctrl + Q` on your keyboard to trigger an immediate stop.
+*   自動化中いつでも、キーボードの `Esc` または `Ctrl + Q` を押すと、即座に停止をトリガーできます。
 
 ---
 
-## Troubleshooting
+## トラブルシューティング
 
-*   **`NameError: name 'KindleController' is not defined` (or similar import errors):** Ensure you have correctly set up your Python virtual environment with a compatible Python version (e.g., Python 3.11 AMD64) and reinstalled all `requirements.txt` dependencies. This error can occur if `opencv-python` or its underlying `numpy` dependency is not correctly installed for your specific Python version and architecture.
-*   **Kindle App Not Found:** Ensure the Kindle for PC application is installed and running. If it's not found automatically, try launching it manually before starting the automation.
-*   **Capture Region Issues:** Use the "Test Capture" button and the "Manual Region Selection" feature to precisely define and verify the capture area.
-*   **"Nothing happens" after clicking Start:** Check the "Log" area for any error messages. Ensure all required settings (especially output folder/filename if not default) are filled. The automation might be waiting for Kindle to launch or activate.
+*   **`NameError: name 'KindleController' is not defined` (または同様のインポートエラー):** 互換性のあるPythonバージョン（例: Python 3.11 AMD64）でPython仮想環境を正しくセットアップし、すべての `requirements.txt` の依存関係を再インストールしたことを確認してください。このエラーは、`opencv-python` またはその基盤となる `numpy` 依存関係が、特定のPythonバージョンとアーキテクチャ用に正しくインストールされていない場合に発生する可能性があります。
+*   **Kindleアプリが見つからない:** Kindle for PC アプリケーションがインストールされ、実行されていることを確認してください。自動的に見つからない場合は、自動化を開始する前に手動で起動してみてください。
+*   **キャプチャ領域の問題:** 「テストキャプチャ」ボタンと「手動領域選択」機能を使用して、キャプチャ領域を正確に定義し、確認してください。
+*   **「開始」をクリックしても何も起こらない:** 「ログ」エリアにエラーメッセージがないか確認してください。すべての必須設定（特にデフォルトでない場合は出力フォルダー/ファイル名）が入力されていることを確認してください。自動化はKindleの起動またはアクティブ化を待っている可能性があります。
 
 ---
