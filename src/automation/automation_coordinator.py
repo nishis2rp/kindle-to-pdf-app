@@ -203,11 +203,15 @@ class AutomationCoordinator:
         is_fullscreen = False
         screenshots_folder = None
         
+        self.status_callback("Automation started.")
         self._prevent_sleep()
         
         try:
+            self.status_callback(f"Checking disk space in '{output_folder}'...")
             if not self._check_disk_space(output_folder, pages):
+                self.error_callback("Disk space check failed. Aborting automation.")
                 return
+            self.status_callback("Disk space check passed.")
             
             self.kindle_controller.KINDLE_STARTUP_DELAY = kindle_startup_delay
             self.kindle_controller.WINDOW_ACTIVATION_DELAY = window_activation_delay
@@ -215,57 +219,76 @@ class AutomationCoordinator:
             self.kindle_controller.NAVIGATION_DELAY = navigation_delay
             self.kindle_controller.PAGE_TURN_DELAY = page_turn_delay
 
+            self.status_callback("Launching and activating Kindle application...")
             kindle_win, _ = self.kindle_controller.launch_and_activate_kindle()
-            if not kindle_win: return
+            if not kindle_win: 
+                self.error_callback("Kindle application could not be launched or activated. Aborting automation.")
+                return
+            self.status_callback("Kindle application launched and activated.")
             is_fullscreen = True
 
             book_region_dict = None
             if region_detection_mode == "Manual":
+                self.status_callback("Using manual region detection mode.")
                 if manual_capture_region and len(manual_capture_region) == 4:
-                    self.status_callback("Using user-defined manual capture region.")
+                    self.status_callback(f"Using user-defined manual capture region: {manual_capture_region}")
                     book_region_dict = {"left": manual_capture_region[0], "top": manual_capture_region[1], "width": manual_capture_region[2], "height": manual_capture_region[3]}
                 else:
-                    self.error_callback("Manual region mode selected, but region is invalid.")
+                    self.error_callback("Manual region mode selected, but region is invalid or not set. Aborting automation.")
                     return
             else:
+                self.status_callback("Using automatic region detection mode.")
                 book_region_dict = self.kindle_controller.get_book_region(kindle_win)
             
             if not book_region_dict:
-                self.error_callback("Failed to determine book capture region.")
+                self.error_callback("Failed to determine book capture region. Aborting automation.")
                 return
+            self.status_callback(f"Book capture region determined: {book_region_dict}")
 
             direction_key = None
             if page_turn_direction == "Automatic":
+                self.status_callback("Determining page turn direction automatically...")
                 direction_key = self.kindle_controller.determine_page_turn_direction(kindle_win)
             elif page_turn_direction == "LtoR":
+                self.status_callback("User selected Left-to-Right page turning.")
                 direction_key = 'left'
             elif page_turn_direction == "RtoL":
+                self.status_callback("User selected Right-to-Left page turning.")
                 direction_key = 'right'
 
             if not direction_key:
-                self.error_callback("Could not determine page turn direction.")
+                self.error_callback("Could not determine page turn direction. Aborting automation.")
                 return
+            self.status_callback(f"Page turn direction determined: {direction_key}")
 
-            self.status_callback("Starting screenshots in 3 seconds...")
+            self.status_callback("Starting screenshot process...")
             time.sleep(3)
             
-            if self.stop_event.is_set(): return
+            if self.stop_event.is_set(): 
+                self.status_callback("Automation stopped before screenshots began.")
+                return
 
             screenshots_folder = create_temp_dir(output_folder, prefix="temp_screenshots_")
             
             book_region_tuple = (book_region_dict["left"], book_region_dict["top"], book_region_dict["width"], book_region_dict["height"])
             image_files = self._take_screenshots(pages, screenshots_folder, page_turn_delay, direction_key, book_region_tuple, end_detection_sensitivity)
 
-            if self.stop_event.is_set() or not image_files:
-                self.status_callback("Process stopped or no images were captured. Aborting PDF creation.")
+            if self.stop_event.is_set():
+                self.status_callback("Automation stopped during screenshot capture.")
                 return
+            if not image_files:
+                self.status_callback("No images were captured. Aborting PDF creation.")
+                return
+            self.status_callback(f"{len(image_files)} images captured.")
 
+            self.status_callback("Creating PDF from captured images...")
             pdf_path = self.pdf_converter.create_pdf_from_images(image_files, output_folder, output_filename, 
                                                                  optimize_images, image_format, jpeg_quality)
             self.success_callback(pdf_path)
+            self.status_callback("Automation finished successfully.")
 
         except Exception as e:
-            self.error_callback(f"An unexpected error occurred: {e}")
+            self.error_callback(f"An unexpected error occurred during automation: {e}")
         finally:
             self._allow_sleep()
 
@@ -275,7 +298,7 @@ class AutomationCoordinator:
                         pyautogui.press('f11')
                         time.sleep(self.EXIT_FULLSCREEN_DELAY)
                 except gw.PyGetWindowException:
-                    self.status_callback("Kindle window was closed manually.")
+                    self.status_callback("Kindle window was closed manually during automation.")
             
             if self.root_window:
                 self.root_window.deiconify()

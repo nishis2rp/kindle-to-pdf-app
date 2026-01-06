@@ -157,6 +157,7 @@ class MainWindow(ttk.Frame):
                 self.config = current_config; config_manager.save_config(self.config)
             except (ValueError, TypeError): messagebox.showerror("Error", "Please enter valid numbers for pages, delays, and JPEG quality."); return
             self.is_running = True; self.start_pause_resume_button.config(text="Pause"); self.stop_button.config(state="normal"); self.set_settings_state("disabled"); self.update_progress(0, self.config["pages"])
+            self.log_message("Attempting to start automation thread...")
             threading.Thread(target=self.automation.run, kwargs=self.config).start()
         elif button_text == "Pause": self.automation.pause(); self.start_pause_resume_button.config(text="Resume")
         elif button_text == "Resume": self.automation.resume(); self.start_pause_resume_button.config(text="Pause")
