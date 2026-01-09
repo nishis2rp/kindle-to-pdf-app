@@ -1,24 +1,29 @@
-import tkinter as tk
-from tkinter import ttk
-from ttkthemes import ThemedTk
+import customtkinter as ctk
 from .gui.main_window import MainWindow
 from .automation.automation_coordinator import AutomationCoordinator
 from .hotkey_listener import start_hotkey_listener
 
 def main():
-    root = ThemedTk(theme="adapta")
-    root.title("Kindle to PDF App")
+    # Set appearance mode and color theme
+    ctk.set_appearance_mode("System")  # Modes: system, light, dark
+    ctk.set_default_color_theme("blue")  # Themes: blue, dark-blue, green
 
-    window_width = 900
-    window_height = 600
+    root = ctk.CTk()
+    root.title("Kindle to PDF")
+
+    window_width = 1000
+    window_height = 700
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width // 2) - (window_width // 2)
     y = (screen_height // 2) - (window_height // 2)
     root.geometry(f'{window_width}x{window_height}+{x}+{y}')
 
+    # Set minimum window size
+    root.minsize(900, 650)
+
     main_window_frame = MainWindow(master=root)
-    main_window_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    main_window_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
     # Create the automation coordinator and link its callbacks to the GUI
     automation = AutomationCoordinator(

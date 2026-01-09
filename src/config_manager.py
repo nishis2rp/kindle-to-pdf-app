@@ -8,7 +8,7 @@ def get_default_config():
     return {
         "pages": 100,
         "optimize_images": True,
-        "page_turn_delay": 1.5,
+        "page_turn_delay": 3,  # Increased from 1.5 to 3 for better page turn detection
         "kindle_startup_delay": 10,
         "window_activation_delay": 3,
         "fullscreen_delay": 3,

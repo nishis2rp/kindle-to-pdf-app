@@ -20,7 +20,7 @@ class KindleController:
     DEFAULT_WINDOW_ACTIVATION_DELAY = 3
     DEFAULT_FULLSCREEN_DELAY = 3
     DEFAULT_NAVIGATION_DELAY = 7
-    DEFAULT_PAGE_TURN_DELAY = 2
+    DEFAULT_PAGE_TURN_DELAY = 3  # Increased from 2 to 3 for better reliability
 
     # PyAutoGUI configuration
     PYAUTOGUI_PAUSE = 0.1
@@ -31,8 +31,8 @@ class KindleController:
     MIN_BOOK_REGION_SIZE = 0.15  # 15% of window area (lowered for better compatibility)
 
     # Hash comparison threshold for page detection
-    # Using mean grayscale value (0-255), so threshold should be higher
-    HASH_DIFF_THRESHOLD = 5.0  # Increased from 0.5 to detect actual page changes
+    # Using mean grayscale value (0-255), so threshold should be lower for better sensitivity
+    HASH_DIFF_THRESHOLD = 2.0  # Lowered from 5.0 to detect subtle page changes
 
     def __init__(self, status_callback=None, error_callback=None):
         """
@@ -65,30 +65,51 @@ class KindleController:
 
     def is_kindle_running(self):
         """Check if Kindle app is already running"""
-        all_windows = gw.getAllWindows()
-        for window in all_windows:
-            title = window.title.lower()
-            # Check if it's a Kindle window (but not our own app)
-            if ('kindle' in title and
-                'kindletopdf' not in title and
-                'kindle-to-pdf' not in title and
-                not window.title.startswith('C:\\')):  # Filter out file paths
-                return True
-        return False
+        try:
+            all_windows = gw.getAllWindows()
+            for window in all_windows:
+                if not window.title:  # Skip windows with no title
+                    continue
+
+                title = window.title.lower()
+                # Check if it's a Kindle window (but not our own app)
+                if ('kindle' in title and
+                    'kindle to pdf' not in title and  # Our app name
+                    'kindle-to-pdf' not in title and  # Our app name variation
+                    'kindletopdf' not in title and    # Our app name variation
+                    not window.title.startswith('C:\\') and  # Filter out file paths
+                    window.visible):  # Must be visible
+                    return True
+            return False
+        except Exception as e:
+            self.status_callback(f"Warning: Error checking if Kindle is running: {e}")
+            return False
 
     def find_kindle_exe(self):
         """Find Kindle.exe in common installation locations"""
+        localappdata = os.environ.get('LOCALAPPDATA', '')
+        programfiles_x86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
+        programfiles = os.environ.get('ProgramFiles', 'C:\\Program Files')
+        username = os.environ.get('USERNAME', '')
+
         possible_paths = [
-            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'application', 'Kindle.exe'),
-            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Amazon', 'Kindle', 'Kindle.exe'),
-            os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'Amazon', 'Kindle', 'Kindle.exe'),
-            os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), 'Amazon', 'Kindle', 'Kindle.exe'),
-            'C:\\Users\\' + os.environ.get('USERNAME', '') + '\\AppData\\Local\\Amazon\\Kindle\\application\\Kindle.exe',
+            # Most common location
+            os.path.join(localappdata, 'Amazon', 'Kindle', 'application', 'Kindle.exe'),
+            # Alternative locations
+            os.path.join(localappdata, 'Amazon', 'Kindle', 'Kindle.exe'),
+            os.path.join(programfiles_x86, 'Amazon', 'Kindle', 'Kindle.exe'),
+            os.path.join(programfiles, 'Amazon', 'Kindle', 'Kindle.exe'),
+            f'C:\\Users\\{username}\\AppData\\Local\\Amazon\\Kindle\\application\\Kindle.exe',
         ]
 
+        self.status_callback("Searching for Kindle.exe in standard locations...")
         for path in possible_paths:
             if path and os.path.exists(path):
+                self.status_callback(f"Found Kindle.exe at: {path}")
                 return path
+            else:
+                self.status_callback(f"Not found at: {path}")
+
         return None
 
     def start_kindle_app(self):
@@ -103,30 +124,83 @@ class KindleController:
 
         if not kindle_path:
             error_msg = (
-                "Could not find Kindle.exe in standard installation locations.\n"
-                "Please start Kindle manually and open a book before starting automation."
+                "Could not find Kindle.exe in standard installation locations.\n\n"
+                "Searched locations:\n"
+                "- %LOCALAPPDATA%\\Amazon\\Kindle\\application\\Kindle.exe\n"
+                "- %LOCALAPPDATA%\\Amazon\\Kindle\\Kindle.exe\n"
+                "- Program Files (x86)\\Amazon\\Kindle\\Kindle.exe\n"
+                "- Program Files\\Amazon\\Kindle\\Kindle.exe\n\n"
+                "Please either:\n"
+                "1. Install Kindle for PC from Amazon, OR\n"
+                "2. Start Kindle manually and open a book before starting automation"
             )
             self.error_callback(error_msg)
             return False, error_msg
 
         try:
-            self.status_callback(f"Found Kindle at: {kindle_path}")
-            subprocess.Popen(kindle_path)
-            self.status_callback(f"Kindle launched. Waiting {self.KINDLE_STARTUP_DELAY}s for startup...")
-            time.sleep(self.KINDLE_STARTUP_DELAY)
+            self.status_callback(f"Launching Kindle from: {kindle_path}")
 
-            # Verify that Kindle actually started
+            # Use startupinfo to hide console window on Windows
+            startupinfo = None
+            if os.name == 'nt':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+
+            process = subprocess.Popen(
+                [kindle_path],
+                startupinfo=startupinfo,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+
+            self.status_callback(f"Kindle process started (PID: {process.pid})")
+            self.status_callback(f"Waiting {self.KINDLE_STARTUP_DELAY} seconds for Kindle to fully start...")
+
+            # Wait and check periodically if Kindle window appears
+            check_interval = 2  # Check every 2 seconds
+            max_checks = int(self.KINDLE_STARTUP_DELAY / check_interval)
+
+            for i in range(max_checks):
+                time.sleep(check_interval)
+                if self.is_kindle_running():
+                    self.status_callback(f"Kindle window detected after {(i+1)*check_interval} seconds!")
+                    # Give it a bit more time to fully initialize
+                    time.sleep(2)
+                    self.status_callback("Kindle started successfully.")
+                    return True, None
+                else:
+                    self.status_callback(f"Waiting... ({(i+1)*check_interval}/{self.KINDLE_STARTUP_DELAY}s)")
+
+            # Final check after full delay
             if self.is_kindle_running():
                 self.status_callback("Kindle started successfully.")
                 return True, None
             else:
-                error_msg = "Kindle was launched but no window was detected. Please check if Kindle started correctly."
+                error_msg = (
+                    f"Kindle.exe was launched but no window appeared after {self.KINDLE_STARTUP_DELAY} seconds.\n\n"
+                    "Possible issues:\n"
+                    "1. Kindle may be starting slowly - try increasing 'Kindle Startup Delay' in settings\n"
+                    "2. Kindle may have opened minimized - check your taskbar\n"
+                    "3. Kindle may require login - please start it manually first\n\n"
+                    "Recommendation: Start Kindle manually, log in if needed, and open a book before using automation."
+                )
                 self.error_callback(error_msg)
                 return False, error_msg
 
-        except Exception as e:
-            error_msg = f"Failed to start Kindle: {e}"
+        except FileNotFoundError:
+            error_msg = f"Kindle.exe not found at: {kindle_path}\nPlease reinstall Kindle for PC."
             self.error_callback(error_msg)
+            return False, error_msg
+        except PermissionError:
+            error_msg = f"Permission denied when trying to launch Kindle.\nPlease run this app as administrator."
+            self.error_callback(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Failed to start Kindle: {type(e).__name__}: {e}"
+            self.error_callback(error_msg)
+            import traceback
+            self.status_callback(f"Traceback: {traceback.format_exc()}")
             return False, error_msg
 
     def get_monitor_for_window(self, window):
@@ -144,42 +218,70 @@ class KindleController:
     def _get_kindle_window(self):
         self.status_callback("Finding Kindle app window...")
 
-        # Find all windows and filter for actual Kindle windows
-        all_windows = gw.getAllWindows()
-        kindle_windows = []
+        try:
+            # Find all windows and filter for actual Kindle windows
+            all_windows = gw.getAllWindows()
+            kindle_windows = []
 
-        for window in all_windows:
-            title_lower = window.title.lower()
-            # Check if it's a Kindle window (but not our own app or empty)
-            # Filter out: our app name, file paths, and empty titles
-            if ('kindle' in title_lower and
-                'kindletopdf' not in title_lower and
-                'kindle-to-pdf' not in title_lower and
-                not window.title.startswith('C:\\') and  # Filter out file paths
-                window.title.strip() and
-                window.visible):
-                kindle_windows.append(window)
+            self.status_callback(f"Scanning {len(all_windows)} windows for Kindle...")
 
-        if not kindle_windows:
-            self.error_callback("Kindle app window not found. Please ensure Kindle is running and a book is open.")
+            for window in all_windows:
+                if not window.title:  # Skip windows with no title
+                    continue
+
+                title_lower = window.title.lower()
+                # Check if it's a Kindle window (but not our own app or empty)
+                # Filter out: our app name, file paths, and empty titles
+                if ('kindle' in title_lower and
+                    'kindle to pdf' not in title_lower and  # Our app name
+                    'kindletopdf' not in title_lower and
+                    'kindle-to-pdf' not in title_lower and
+                    not window.title.startswith('C:\\') and  # Filter out file paths
+                    window.title.strip() and
+                    window.visible and
+                    window.width > 100 and  # Reasonable window size
+                    window.height > 100):
+                    kindle_windows.append(window)
+                    self.status_callback(f"Found candidate: '{window.title}' (size: {window.width}x{window.height})")
+
+            if not kindle_windows:
+                error_msg = (
+                    "Kindle app window not found.\n\n"
+                    "Please ensure:\n"
+                    "1. Kindle for PC is installed and running\n"
+                    "2. You are logged into your Amazon account\n"
+                    "3. A book is open (not just the library view)\n"
+                    "4. The Kindle window is not minimized"
+                )
+                self.error_callback(error_msg)
+                return None
+
+            # Use the first valid Kindle window
+            main_window = kindle_windows[0]
+            window_title = main_window.title
+
+            if len(kindle_windows) > 1:
+                self.status_callback(f"Found {len(kindle_windows)} Kindle windows, using: '{window_title}'")
+
+            if window_title.strip().lower() == 'kindle':
+                self.status_callback("WARNING: Kindle is running but no book appears to be open.")
+                self.status_callback("Window title is just 'Kindle' - please open a book before starting.")
+                # Don't return None here, let user proceed but warn them
+            else:
+                # Safely display window title
+                try:
+                    self.status_callback(f"Found Kindle window: '{window_title}'")
+                except UnicodeEncodeError:
+                    self.status_callback(f"Found Kindle window (title contains special characters)")
+
+            return main_window
+
+        except Exception as e:
+            error_msg = f"Error while searching for Kindle window: {type(e).__name__}: {e}"
+            self.error_callback(error_msg)
+            import traceback
+            self.status_callback(f"Traceback: {traceback.format_exc()}")
             return None
-
-        # Use the first valid Kindle window
-        main_window = kindle_windows[0]
-        window_title = main_window.title
-
-        if window_title.strip().lower() == 'kindle':
-            self.status_callback("WARNING: Kindle is running but no book appears to be open.")
-            self.status_callback("Window title is just 'Kindle' - please open a book before starting.")
-            # Don't return None here, let user proceed but warn them
-        else:
-            # Safely display window title
-            try:
-                self.status_callback(f"Found Kindle window: '{window_title}'")
-            except UnicodeEncodeError:
-                self.status_callback(f"Found Kindle window (title contains special characters)")
-
-        return main_window
 
     def find_and_activate_kindle(self):
         kindle_win = self._get_kindle_window()
@@ -252,10 +354,14 @@ class KindleController:
 
     def navigate_to_first_page(self):
         self.status_callback("Navigating to the beginning of the book (pressing 'Home' key)...")
-        # Kindleがフォーカスされていることを確認するため、複数回Homeキーを押す
+        # Use keyDown/keyUp for more reliable input
         for i in range(2):
-            pyautogui.press('home')
-            time.sleep(0.5)
+            self.status_callback(f"Pressing Home key (attempt {i+1}/2)...")
+            pyautogui.keyDown('home')
+            time.sleep(0.1)
+            pyautogui.keyUp('home')
+            time.sleep(0.8)
+        self.status_callback(f"Waiting {self.NAVIGATION_DELAY} seconds for navigation to complete...")
         time.sleep(self.NAVIGATION_DELAY)
 
     def get_book_region(self, kindle_win):
@@ -313,11 +419,17 @@ class KindleController:
             # 5. Convert to absolute screen coordinates and apply a margin
             margin = self.BOOK_REGION_MARGIN
 
+            # Adjust margins - reduce top margin to capture more of the page
+            # and increase bottom margin to exclude taskbar
+            top_margin = max(5, margin // 2)  # Reduce top margin to avoid cropping
+            bottom_margin = margin * 2  # Increase bottom margin to exclude taskbar
+            side_margin = margin
+
             book_region = {
-                "left": kindle_win.left + x + margin,
-                "top": kindle_win.top + y + margin,
-                "width": w - (2 * margin),
-                "height": h - (2 * margin)
+                "left": kindle_win.left + x + side_margin,
+                "top": kindle_win.top + y + top_margin,
+                "width": w - (2 * side_margin),
+                "height": h - top_margin - bottom_margin
             }
 
             self.status_callback(f"Dynamic detection SUCCESS: {book_region}")
@@ -332,24 +444,26 @@ class KindleController:
             if kindle_win.width > 1000 and kindle_win.height > 700:
                 # Fullscreen mode - use generous margins
                 margin_h = int(kindle_win.width * 0.1)  # 10% horizontal margin
-                margin_v = int(kindle_win.height * 0.05)  # 5% vertical margin
+                margin_v_top = int(kindle_win.height * 0.03)  # 3% top margin (reduced)
+                margin_v_bottom = int(kindle_win.height * 0.08)  # 8% bottom margin (increased to exclude taskbar)
 
                 book_x = kindle_win.left + margin_h
-                book_y = kindle_win.top + margin_v
+                book_y = kindle_win.top + margin_v_top
                 book_width = kindle_win.width - (2 * margin_h)
-                book_height = kindle_win.height - (2 * margin_v)
+                book_height = kindle_win.height - margin_v_top - margin_v_bottom
 
-                self.status_callback(f"Fullscreen mode detected - using proportional margins")
+                self.status_callback(f"Fullscreen mode detected - using proportional margins (top: {margin_v_top}px, bottom: {margin_v_bottom}px)")
             else:
                 # Windowed mode - use fixed margins
                 title_bar_height = 30
                 side_margin = 15
-                bottom_margin = 15
+                top_margin = 5  # Reduced from default
+                bottom_margin = 40  # Increased to exclude taskbar
 
                 book_x = kindle_win.left + side_margin
-                book_y = kindle_win.top + title_bar_height
+                book_y = kindle_win.top + title_bar_height + top_margin
                 book_width = kindle_win.width - (2 * side_margin)
-                book_height = kindle_win.height - title_bar_height - bottom_margin
+                book_height = kindle_win.height - title_bar_height - top_margin - bottom_margin
 
                 self.status_callback(f"Windowed mode detected - using fixed margins")
 
@@ -400,72 +514,174 @@ class KindleController:
 
             # Move mouse to window (this works across monitors)
             pyautogui.moveTo(window_center_x, window_center_y, duration=0.3)
-            time.sleep(0.2)
+            time.sleep(0.5)
 
-            # Activate window
+            # Activate window multiple times to ensure focus
+            self.status_callback("Activating Kindle window...")
+            kindle_win.activate()
+            time.sleep(0.8)
+
+            # Move mouse and click multiple times to ensure focus
+            self.status_callback("Clicking window to ensure focus...")
+            pyautogui.click()
+            time.sleep(0.3)
+            pyautogui.click()
+            time.sleep(0.3)
+            pyautogui.click()
+            time.sleep(0.5)
+
+            # Re-activate after clicking
             kindle_win.activate()
             time.sleep(0.5)
 
-            # Click to ensure focus (cursor is already at window center)
-            pyautogui.click()
-            time.sleep(0.5)
+            # Final verification - send a harmless key that won't change pages
+            # Press and release ESC (usually does nothing in Kindle)
+            self.status_callback("Sending test key press to verify focus...")
+            pyautogui.press('esc')
+            time.sleep(0.3)
 
             self.status_callback("Window focused and ready for page turn detection")
         except Exception as e:
             self.status_callback(f"Focus warning during direction test: {e}")
 
+        # Wait a bit more to ensure everything is stable
+        time.sleep(1)
+
         # 最初のページハッシュを記録
         initial_hash = self._hash_image(sct_monitor)
         self.status_callback(f"Initial page hash recorded: {initial_hash:.2f}")
 
+        # Take a test screenshot to verify we're capturing something
+        try:
+            with mss.mss() as sct:
+                test_img = sct.grab(sct_monitor)
+                test_arr = np.array(Image.frombytes("RGB", test_img.size, test_img.rgb))
+                mean_brightness = np.mean(test_arr)
+                self.status_callback(f"Capture verification - Image size: {test_img.size}, Mean brightness: {mean_brightness:.2f}")
+
+                # Check if image is not completely black or white
+                if mean_brightness < 10 or mean_brightness > 245:
+                    self.status_callback(f"WARNING: Captured image may be invalid (brightness: {mean_brightness:.2f})")
+        except Exception as e:
+            self.status_callback(f"Capture verification warning: {e}")
+
         # 右矢印でテスト
         self.status_callback("Testing RIGHT arrow key...")
-        pyautogui.press('right')
-        time.sleep(self.PAGE_TURN_DELAY)  # ページめくりの遅延時間を使用
+        self.status_callback("Pressing RIGHT arrow...")
+
+        # Use keyDown/keyUp instead of press for more reliable input
+        pyautogui.keyDown('right')
+        time.sleep(0.1)
+        pyautogui.keyUp('right')
+
+        self.status_callback(f"Waiting {self.PAGE_TURN_DELAY}s for page to turn...")
+        time.sleep(self.PAGE_TURN_DELAY)
+
         after_right_hash = self._hash_image(sct_monitor)
         right_diff = abs(initial_hash - after_right_hash)
         self.status_callback(f"After RIGHT arrow hash: {after_right_hash:.2f} (diff: {right_diff:.2f})")
 
         # ハッシュの差を計算（より堅牢な検出のため）
         if right_diff > self.HASH_DIFF_THRESHOLD:
-            self.status_callback("Page turn direction: Right-to-Left (RTL)")
+            self.status_callback(f"✓ Page turn detected! RIGHT arrow changes page (diff: {right_diff:.2f} > threshold: {self.HASH_DIFF_THRESHOLD})")
+            self.status_callback("Page turn direction: Right-to-Left (RTL) - RIGHT arrow advances page")
             # ページがめくれたので、テストで進んだ分を戻す
-            pyautogui.press('left')
+            self.status_callback("Pressing LEFT arrow to return to original page...")
+            pyautogui.keyDown('left')
+            time.sleep(0.1)
+            pyautogui.keyUp('left')
             time.sleep(self.PAGE_TURN_DELAY)
             return 'right'  # 右矢印で次に進む
 
+        # No change detected - try going back with LEFT to return to original state
+        self.status_callback("No change detected with RIGHT arrow. Pressing LEFT to return to original state...")
+        pyautogui.keyDown('left')
+        time.sleep(0.1)
+        pyautogui.keyUp('left')
+        time.sleep(self.PAGE_TURN_DELAY)
+
         # 元のページに戻ったか確認
-        # 再度ハッシュを計算し、initial_hashと比較
         current_hash = self._hash_image(sct_monitor)
-        if abs(initial_hash - current_hash) <= self.HASH_DIFF_THRESHOLD:
-            self.status_callback("Returned to initial page state after right-arrow test.")
-        else:
-            self.error_callback("Failed to return to initial page state after right-arrow test. Manual intervention may be needed.")
-            # エラーなので、処理を続行せずにNoneを返すか、例外を発生させる
-            return None
+        back_diff = abs(initial_hash - current_hash)
+        self.status_callback(f"After LEFT return hash: {current_hash:.2f} (diff from initial: {back_diff:.2f})")
+
+        if back_diff > self.HASH_DIFF_THRESHOLD:
+            # LEFT made a change, so we're probably not at initial page anymore
+            self.status_callback("WARNING: Could not reliably return to initial page. Trying RIGHT to stabilize...")
+            pyautogui.press('right')
+            time.sleep(self.PAGE_TURN_DELAY)
+
+        # Wait and recapture initial state
+        time.sleep(1)
+        initial_hash = self._hash_image(sct_monitor)
+        self.status_callback(f"Re-captured initial page hash: {initial_hash:.2f}")
 
         # 左矢印でテスト
         self.status_callback("Testing LEFT arrow key...")
-        pyautogui.press('left')
+        self.status_callback("Pressing LEFT arrow...")
+
+        # Use keyDown/keyUp instead of press for more reliable input
+        pyautogui.keyDown('left')
+        time.sleep(0.1)
+        pyautogui.keyUp('left')
+
+        self.status_callback(f"Waiting {self.PAGE_TURN_DELAY}s for page to turn...")
         time.sleep(self.PAGE_TURN_DELAY)
+
         after_left_hash = self._hash_image(sct_monitor)
         left_diff = abs(initial_hash - after_left_hash)
         self.status_callback(f"After LEFT arrow hash: {after_left_hash:.2f} (diff: {left_diff:.2f})")
 
         if left_diff > self.HASH_DIFF_THRESHOLD:
-            self.status_callback("Page turn direction: Left-to-Right (LTR)")
+            self.status_callback(f"✓ Page turn detected! LEFT arrow changes page (diff: {left_diff:.2f} > threshold: {self.HASH_DIFF_THRESHOLD})")
+            self.status_callback("Page turn direction: Left-to-Right (LTR) - LEFT arrow advances page")
             # ページがめくれたので、テストで進んだ分を戻す
-            pyautogui.press('right')
+            self.status_callback("Pressing RIGHT arrow to return to original page...")
+            pyautogui.keyDown('right')
+            time.sleep(0.1)
+            pyautogui.keyUp('right')
             time.sleep(self.PAGE_TURN_DELAY)
             return 'left'  # 左矢印で次に進む
 
-        self.error_callback(
-            f"Could not determine page turn direction. Screen did not change significantly.\n"
-            f"Right arrow diff: {right_diff:.2f}, Left arrow diff: {left_diff:.2f} "
-            f"(threshold: {self.HASH_DIFF_THRESHOLD})\n"
-            f"Please ensure:\n"
-            f"1. A book is open in Kindle (not just the library)\n"
-            f"2. The book page is visible and not covered by menus\n"
-            f"3. Try increasing 'Page Turn Delay' in settings if pages turn slowly"
-        )
+        # Neither direction worked - check if it's close to threshold
+        max_diff = max(right_diff, left_diff)
+
+        if max_diff > self.HASH_DIFF_THRESHOLD * 0.5:
+            # Close to detection, suggest increasing delay
+            self.error_callback(
+                f"Page turn detection partially successful but below threshold.\n\n"
+                f"Detection results:\n"
+                f"- Initial hash: {initial_hash:.2f}\n"
+                f"- RIGHT arrow diff: {right_diff:.2f}\n"
+                f"- LEFT arrow diff: {left_diff:.2f}\n"
+                f"- Threshold: {self.HASH_DIFF_THRESHOLD}\n"
+                f"- Max diff: {max_diff:.2f} (need >{self.HASH_DIFF_THRESHOLD})\n\n"
+                f"The page is changing slightly, but not enough to detect reliably.\n\n"
+                f"RECOMMENDED SOLUTIONS (in order):\n"
+                f"1. ★ INCREASE 'Page Turn Delay' to 4-5 seconds (currently {self.PAGE_TURN_DELAY}s)\n"
+                f"2. ★ MANUALLY SELECT page direction: LtoR (English) or RtoL (Manga)\n"
+                f"3. Click on the Kindle page 3-4 times to ensure focus\n"
+                f"4. Wait a few seconds, then try again\n"
+                f"5. Use 'Manual Region Selection' mode if area detection is wrong"
+            )
+        else:
+            # Very little change detected
+            self.error_callback(
+                f"Could not determine page turn direction. Screen did not change significantly.\n\n"
+                f"Detection results:\n"
+                f"- Initial hash: {initial_hash:.2f}\n"
+                f"- RIGHT arrow diff: {right_diff:.2f}\n"
+                f"- LEFT arrow diff: {left_diff:.2f}\n"
+                f"- Threshold: {self.HASH_DIFF_THRESHOLD}\n\n"
+                f"CRITICAL ISSUES DETECTED:\n"
+                f"1. ★ Book is NOT open - showing library or blank screen\n"
+                f"2. ★ Kindle window does NOT have keyboard focus\n"
+                f"3. Page is covered by menus/dialogs\n\n"
+                f"IMMEDIATE ACTIONS REQUIRED:\n"
+                f"1. ★ OPEN A BOOK in Kindle (not just the library)\n"
+                f"2. ★ CLICK on the book page 3-4 times to ensure focus\n"
+                f"3. ★ MANUALLY SELECT page direction: LtoR or RtoL\n"
+                f"4. Close any menus or dialogs in Kindle\n"
+                f"5. Increase 'Page Turn Delay' to 4-5 seconds"
+            )
         return None

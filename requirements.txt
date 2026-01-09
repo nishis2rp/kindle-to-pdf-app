@@ -21,6 +21,6 @@ img2pdf==0.4.4
 reportlab==4.4.7
 setuptools==80.9.0
 typing_extensions==4.15.0
-ttkthemes==3.2.2
+customtkinter==5.2.2
 keyboard==0.13.5
 numpy==1.26.4

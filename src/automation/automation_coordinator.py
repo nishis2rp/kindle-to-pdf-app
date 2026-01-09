@@ -80,9 +80,14 @@ class AutomationCoordinator:
                         return []
 
                 self.progress_callback(page_num, pages)
+
+                # Wait a bit before capturing to ensure page is fully loaded
+                if page_num > 1:
+                    time.sleep(0.3)  # Additional stabilization time after page turn
+
                 self.status_callback(f"Capturing page {page_num}/{pages}...")
                 sct_img = sct.grab(sct_monitor)
-                
+
                 current_hash = self._hash_image(sct_img)
                 if len(last_hashes) >= consecutive_matches and all(h == current_hash for h in last_hashes[-consecutive_matches:]):
                     self.status_callback(f"End of book detected ({consecutive_matches} identical pages).")
@@ -93,14 +98,20 @@ class AutomationCoordinator:
                 img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
                 img.save(image_path)
                 image_files.append(image_path)
-                
+
                 self.preview_callback(image_path)
 
                 if page_num == pages:
                     self.status_callback(f"Reached user-defined page limit of {pages}.")
                     break
 
-                pyautogui.press(page_turn_direction)
+                # Use keyDown/keyUp for more reliable page turning
+                self.status_callback(f"Turning page with {page_turn_direction} arrow key...")
+                pyautogui.keyDown(page_turn_direction)
+                time.sleep(0.1)
+                pyautogui.keyUp(page_turn_direction)
+
+                # Wait for page turn animation and content load
                 time.sleep(page_turn_delay)
                 page_num += 1
         return image_files
