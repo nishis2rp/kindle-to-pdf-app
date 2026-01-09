@@ -5,6 +5,7 @@ import subprocess
 import threading
 from .. import config_manager
 from .region_selector import RegionSelector
+from .tooltip import ToolTip
 from PIL import Image, ImageTk
 
 class MainWindow(ttk.Frame):
@@ -17,9 +18,33 @@ class MainWindow(ttk.Frame):
         self.config = {}
         self.is_running = False
 
+        # Register validation commands
+        self.vcmd_int = (self.master.register(self._validate_integer), '%P')
+        self.vcmd_float = (self.master.register(self._validate_float), '%P')
+
         self.create_widgets()
         self.load_settings()
         self.log_message("Welcome! Configure settings and start automation.")
+
+    def _validate_integer(self, value):
+        """Validate integer input"""
+        if value == "":
+            return True
+        try:
+            int(value)
+            return True
+        except ValueError:
+            return False
+
+    def _validate_float(self, value):
+        """Validate float input"""
+        if value == "":
+            return True
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
 
     def create_widgets(self):
         paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
@@ -36,11 +61,21 @@ class MainWindow(ttk.Frame):
 
         target_frame = ttk.LabelFrame(parent, text="Target Settings"); target_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         self.region_detection_mode = tk.StringVar(); self.region_detection_mode.trace_add("write", self._on_region_mode_change)
-        ttk.Radiobutton(target_frame, text="Automatic Region Detection", variable=self.region_detection_mode, value="Automatic").pack(anchor="w", padx=5) 
+        auto_radio = ttk.Radiobutton(target_frame, text="Automatic Region Detection", variable=self.region_detection_mode, value="Automatic")
+        auto_radio.pack(anchor="w", padx=5)
+        ToolTip(auto_radio, "Automatically detect the book reading area\nusing image processing.")
+
         manual_frame = ttk.Frame(target_frame); manual_frame.pack(fill="x", padx=5)
-        ttk.Radiobutton(manual_frame, text="Manual Region Selection", variable=self.region_detection_mode, value="Manual").pack(side="left", anchor="w")
+        manual_radio = ttk.Radiobutton(manual_frame, text="Manual Region Selection", variable=self.region_detection_mode, value="Manual")
+        manual_radio.pack(side="left", anchor="w")
+        ToolTip(manual_radio, "Manually select the capture region\nby dragging on screen.")
+
         self.select_region_button = ttk.Button(manual_frame, text="Select Area...", command=self._on_select_region_click); self.select_region_button.pack(side="left", padx=5)
+        ToolTip(self.select_region_button, "Click to select capture area.\nDrag to draw a rectangle around\nthe book reading area.")
+
         self.test_capture_button = ttk.Button(target_frame, text="Test Capture", command=self._on_test_capture_click); self.test_capture_button.pack(pady=5, padx=5, fill=tk.X)
+        ToolTip(self.test_capture_button, "Test the capture settings.\nCaptured image will appear in preview.")
+
         self.region_display_label = ttk.Label(target_frame, text="Region: Not set"); self.region_display_label.pack(anchor="w", padx=5, pady=(0, 5))
 
         action_params_frame = ttk.LabelFrame(parent, text="Action Parameters"); action_params_frame.grid(row=1, column=0, sticky="ew", pady=5)
@@ -48,11 +83,15 @@ class MainWindow(ttk.Frame):
         ttk.Label(action_params_frame, text="Page Turn Direction:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.page_turn_direction_var = tk.StringVar()
         self.page_turn_direction_combo = ttk.Combobox(action_params_frame, textvariable=self.page_turn_direction_var, values=["Automatic", "LtoR", "RtoL"], state="readonly"); self.page_turn_direction_combo.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ToolTip(self.page_turn_direction_combo, "Automatic: Detect reading direction\nLtoR: Left to Right (English books)\nRtoL: Right to Left (Japanese manga)")
+
         ttk.Label(action_params_frame, text="Max Pages to Capture:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.pages_entry = ttk.Entry(action_params_frame); self.pages_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        
+        self.pages_entry = ttk.Entry(action_params_frame, validate="key", validatecommand=self.vcmd_int); self.pages_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ToolTip(self.pages_entry, "Maximum number of pages to capture.\nAutomation stops when this limit is reached\nor end of book is detected.")
+
         ttk.Label(action_params_frame, text="End Detect Sensitivity (>=1):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.end_detection_sensitivity_entry = ttk.Entry(action_params_frame); self.end_detection_sensitivity_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.end_detection_sensitivity_entry = ttk.Entry(action_params_frame, validate="key", validatecommand=self.vcmd_int); self.end_detection_sensitivity_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        ToolTip(self.end_detection_sensitivity_entry, "Number of identical consecutive pages\nneeded to detect end of book.\nRecommended: 3-5")
 
 
         output_frame = ttk.LabelFrame(parent, text="Output Settings"); output_frame.grid(row=2, column=0, sticky="ew", pady=5)
@@ -67,31 +106,64 @@ class MainWindow(ttk.Frame):
         self.image_format_var = tk.StringVar()
         self.image_format_combo = ttk.Combobox(output_frame, textvariable=self.image_format_var, values=["PNG", "JPEG"], state="readonly"); self.image_format_combo.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
         self.image_format_combo.bind("<<ComboboxSelected>>", self._on_image_format_change)
+        ToolTip(self.image_format_combo, "PNG: High quality, larger file size\nJPEG: Compressed, smaller file size")
 
         ttk.Label(output_frame, text="JPEG Quality (0-100):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.jpeg_quality_entry = ttk.Entry(output_frame); self.jpeg_quality_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        self.jpeg_quality_entry = ttk.Entry(output_frame, validate="key", validatecommand=self.vcmd_int); self.jpeg_quality_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        ToolTip(self.jpeg_quality_entry, "JPEG compression quality.\n100 = Best quality, larger size\n0 = Lowest quality, smallest size\nRecommended: 85-95")
 
         self.optimize_images_var = tk.BooleanVar()
         self.optimize_images_checkbox = ttk.Checkbutton(output_frame, text="Optimize Images (Grayscale/Resize)", variable=self.optimize_images_var); self.optimize_images_checkbox.grid(row=4, column=0, columnspan=3, sticky="w", padx=5)
+        ToolTip(self.optimize_images_checkbox, "Convert to grayscale and resize images\nto reduce PDF file size.\nRecommended for text-heavy books.")
         
         delay_frame = ttk.LabelFrame(parent, text="Delay Settings (seconds)"); delay_frame.grid(row=3, column=0, sticky="nsew", pady=5)
         delay_frame.columnconfigure(1, weight=1)
         delays = { "Page Turn": "page_turn_delay_entry", "Kindle Startup": "kindle_startup_delay_entry", "Window Activation": "window_activation_delay_entry", "Fullscreen Toggle": "fullscreen_delay_entry", "Go to Home": "navigation_delay_entry" }
+        delay_tooltips = {
+            "Page Turn": "Wait time after turning a page\nto ensure page fully loads.",
+            "Kindle Startup": "Wait time after launching Kindle\nto ensure app is fully loaded.",
+            "Window Activation": "Wait time after activating window\nto ensure it has focus.",
+            "Fullscreen Toggle": "Wait time after pressing F11\nto ensure fullscreen is active.",
+            "Go to Home": "Wait time after pressing Home key\nto ensure navigation completes."
+        }
         for i, (text, attr) in enumerate(delays.items()):
             ttk.Label(delay_frame, text=f"{text}:").grid(row=i, column=0, padx=5, pady=2, sticky="w")
-            entry = ttk.Entry(delay_frame, width=10); entry.grid(row=i, column=1, padx=5, pady=2, sticky="ew"); setattr(self, attr, entry)
+            entry = ttk.Entry(delay_frame, width=10, validate="key", validatecommand=self.vcmd_float); entry.grid(row=i, column=1, padx=5, pady=2, sticky="ew"); setattr(self, attr, entry)
+            ToolTip(entry, delay_tooltips.get(text, ""))
 
     def _create_monitoring_widgets(self, parent):
-        parent.rowconfigure(2, weight=3); parent.rowconfigure(3, weight=1); parent.columnconfigure(0, weight=1)
-        button_frame = ttk.Frame(parent); button_frame.grid(row=0, column=0, sticky="ew")
+        parent.rowconfigure(3, weight=3); parent.rowconfigure(4, weight=1); parent.columnconfigure(0, weight=1)
+
+        # Add prerequisites info frame
+        info_frame = ttk.LabelFrame(parent, text="⚠ Prerequisites", padding=5)
+        info_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        prereq_text = (
+            "Before starting:\n"
+            "1. Kindle app will auto-launch (or use existing window)\n"
+            "2. IMPORTANT: Open a book in Kindle and go to the first page\n"
+            "3. Do NOT move mouse or press keys during automation"
+        )
+        prereq_label = ttk.Label(info_frame, text=prereq_text, font=("TkDefaultFont", 9), foreground="#d35400")
+        prereq_label.pack(anchor="w")
+
+        button_frame = ttk.Frame(parent); button_frame.grid(row=1, column=0, sticky="ew")
         self.start_pause_resume_button = ttk.Button(button_frame, text="Start", command=self._on_start_pause_resume_click); self.start_pause_resume_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+        ToolTip(self.start_pause_resume_button, "Start automation.\nKindle will launch automatically if not running.\nMake sure to open a book first!")
+
+        self.stop_button = ttk.Button(button_frame, text="Stop", command=self._on_stop_click, state="disabled"); self.stop_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 5))
+        ToolTip(self.stop_button, "Stop automation immediately.\nYou can also press Esc or Ctrl+Q.")
+
         self.open_folder_button = ttk.Button(button_frame, text="Open Output Folder", command=self.open_output_folder); self.open_folder_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
-        progress_frame = ttk.Frame(parent); progress_frame.grid(row=1, column=0, sticky="ew", pady=5); progress_frame.columnconfigure(0, weight=1)
+        ToolTip(self.open_folder_button, "Open the output folder in File Explorer.")
+
+        progress_frame = ttk.Frame(parent); progress_frame.grid(row=2, column=0, sticky="ew", pady=5); progress_frame.columnconfigure(0, weight=1)
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate'); self.progress_bar.grid(row=0, column=0, sticky="ew")
         self.progress_label = ttk.Label(progress_frame, text="0 / 0"); self.progress_label.grid(row=0, column=1, padx=(5, 0))
-        preview_frame = ttk.LabelFrame(parent, text="Preview"); preview_frame.grid(row=2, column=0, sticky="nsew", pady=(5, 5)); preview_frame.rowconfigure(0, weight=1); preview_frame.columnconfigure(0, weight=1)
+
+        preview_frame = ttk.LabelFrame(parent, text="Preview"); preview_frame.grid(row=3, column=0, sticky="nsew", pady=(5, 5)); preview_frame.rowconfigure(0, weight=1); preview_frame.columnconfigure(0, weight=1)
         self.preview_image_label = ttk.Label(preview_frame, text="Preview will appear here."); self.preview_image_label.grid(row=0, column=0, sticky="nsew")
-        log_frame = ttk.LabelFrame(parent, text="Log"); log_frame.grid(row=3, column=0, sticky="nsew", pady=(5, 0)); log_frame.rowconfigure(0, weight=1); log_frame.columnconfigure(0, weight=1)
+
+        log_frame = ttk.LabelFrame(parent, text="Log"); log_frame.grid(row=4, column=0, sticky="nsew", pady=(5, 0)); log_frame.rowconfigure(0, weight=1); log_frame.columnconfigure(0, weight=1)
         self.log_text = tk.Text(log_frame, wrap=tk.WORD, height=10, state='disabled'); self.log_text.grid(row=0, column=0, sticky="nsew")
         log_scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview); log_scrollbar.grid(row=0, column=1, sticky="ns"); self.log_text['yscrollcommand'] = log_scrollbar.set
 
@@ -135,6 +207,9 @@ class MainWindow(ttk.Frame):
         button_text = self.start_pause_resume_button.cget("text")
         if button_text == "Start":
             try:
+                self.log_message("=== Starting Automation ===")
+                self.log_message("Validating configuration...")
+
                 current_config = { "pages": int(self.pages_entry.get()), "optimize_images": self.optimize_images_var.get(),
                                    "page_turn_direction": self.page_turn_direction_var.get(),
                                    "page_turn_delay": float(self.page_turn_delay_entry.get()), "kindle_startup_delay": float(self.kindle_startup_delay_entry.get()),
@@ -145,22 +220,60 @@ class MainWindow(ttk.Frame):
                                    "image_format": self.image_format_var.get(), "jpeg_quality": int(self.jpeg_quality_entry.get()),
                                    "end_detection_sensitivity": int(self.end_detection_sensitivity_entry.get()) }
 
-                if current_config["pages"] <= 0: messagebox.showerror("Error", "Max Pages must be positive."); return
-                if not current_config["output_folder"] or not current_config["output_filename"]: messagebox.showerror("Error", "Output folder and filename must be set."); return
+                if current_config["pages"] <= 0: messagebox.showerror("Validation Error", "Max Pages must be positive."); return
+                if not current_config["output_folder"] or not current_config["output_filename"]: messagebox.showerror("Validation Error", "Output folder and filename must be set."); return
                 if current_config["region_detection_mode"] == "Manual" and not current_config["manual_capture_region"]:
-                    messagebox.showerror("Error", "Manual region mode is active, but no region has been selected."); return
+                    messagebox.showerror("Validation Error", "Manual region mode is active, but no region has been selected.\n\nPlease click 'Select Area...' to define the capture region."); return
                 if not (0 <= current_config["jpeg_quality"] <= 100):
-                    messagebox.showerror("Error", "JPEG Quality must be between 0 and 100."); return
+                    messagebox.showerror("Validation Error", "JPEG Quality must be between 0 and 100."); return
                 if not (current_config["end_detection_sensitivity"] >= 1):
-                    messagebox.showerror("Error", "End Detection Sensitivity must be 1 or greater."); return
+                    messagebox.showerror("Validation Error", "End Detection Sensitivity must be 1 or greater."); return
 
+                self.log_message("Configuration validated successfully.")
                 self.config = current_config; config_manager.save_config(self.config)
-            except (ValueError, TypeError): messagebox.showerror("Error", "Please enter valid numbers for pages, delays, and JPEG quality."); return
-            self.is_running = True; self.start_pause_resume_button.config(text="Pause"); self.stop_button.config(state="normal"); self.set_settings_state("disabled"); self.update_progress(0, self.config["pages"])
-            self.log_message("Attempting to start automation thread...")
-            threading.Thread(target=self.automation.run, kwargs=self.config).start()
-        elif button_text == "Pause": self.automation.pause(); self.start_pause_resume_button.config(text="Resume")
-        elif button_text == "Resume": self.automation.resume(); self.start_pause_resume_button.config(text="Pause")
+                self.log_message(f"Settings saved. Max pages: {current_config['pages']}, Region mode: {current_config['region_detection_mode']}")
+
+            except ValueError as e:
+                messagebox.showerror("Input Error", f"Please enter valid numbers for pages, delays, and JPEG quality.\n\nDetails: {str(e)}");
+                self.log_message(f"Input validation error: {str(e)}")
+                return
+            except Exception as e:
+                messagebox.showerror("Unexpected Error", f"An unexpected error occurred:\n\n{str(e)}");
+                self.log_message(f"Unexpected error during validation: {str(e)}")
+                return
+
+            try:
+                self.is_running = True
+                self.start_pause_resume_button.config(text="Pause")
+                self.stop_button.config(state="normal")
+                self.set_settings_state("disabled")
+                self.update_progress(0, self.config["pages"])
+                self.log_message("Starting automation thread...")
+                self.log_message("NOTE: Do not move the mouse or press keys during automation.")
+                threading.Thread(target=self._run_automation_with_error_handling, daemon=True).start()
+            except Exception as e:
+                self.log_message(f"Failed to start automation thread: {str(e)}")
+                self.show_error(f"Failed to start automation:\n\n{str(e)}")
+                self.enable_start_button()
+
+        elif button_text == "Pause":
+            self.log_message("Pausing automation...")
+            self.automation.pause()
+            self.start_pause_resume_button.config(text="Resume")
+        elif button_text == "Resume":
+            self.log_message("Resuming automation...")
+            self.automation.resume()
+            self.start_pause_resume_button.config(text="Pause")
+
+    def _run_automation_with_error_handling(self):
+        """Wrapper to run automation with proper error handling"""
+        try:
+            self.automation.run(**self.config)
+        except Exception as e:
+            error_msg = f"Automation error: {str(e)}"
+            self.log_message(error_msg)
+            self.master.after(0, lambda: self.show_error(error_msg))
+            self.master.after(0, self.enable_start_button)
 
     def _on_stop_click(self):
         if self.is_running and self.automation: self.automation.stop()
@@ -169,33 +282,51 @@ class MainWindow(ttk.Frame):
         self.is_running = False; self.start_pause_resume_button.config(text="Start"); self.stop_button.config(state="disabled"); self.set_settings_state("normal"); self.log_message("Process finished or stopped."); self.update_progress(0, 0); self.preview_image_label.config(image=None, text="Preview will appear here.")
 
     def set_settings_state(self, state):
-        for child in self.winfo_children():
-            if isinstance(child, ttk.PanedWindow):
-                left_pane = child.pane(0)
-                for widget_name in left_pane.winfo_children():
-                    widget = self.nametowidget(widget_name)
-                    # Skip radio buttons in Target Settings and other specific widgets
-                    if widget is self.select_region_button and self.region_detection_mode.get() == "Manual":
-                        widget.config(state="normal" if state == "normal" else "disabled")
-                        continue
-                    if widget is self.jpeg_quality_entry and self.image_format_var.get() == "JPEG":
-                        widget.config(state="normal" if state == "normal" else "disabled")
-                        continue
+        """Enable or disable all settings widgets"""
+        try:
+            for child in self.winfo_children():
+                if isinstance(child, ttk.PanedWindow):
+                    # Get left pane (settings pane)
+                    panes = child.panes()
+                    if panes and len(panes) > 0:
+                        left_pane_name = panes[0]
+                        left_pane = self.nametowidget(left_pane_name)
 
-                    try: widget.config(state=state)
-                    except tk.TclError:
-                        for sub_widget in widget.winfo_children():
-                            try: sub_widget.config(state=state)
-                            except tk.TclError: pass
-                break
-        # Special handling for radio buttons
-        for child in self.nametowidget("!mainwindow.!panedwindow.!frame.!labelframe").winfo_children():
-            if isinstance(child, ttk.Radiobutton): child.config(state="normal")
-            if isinstance(child, ttk.Frame):
-                for sub_child in child.winfo_children():
-                    if isinstance(sub_child, ttk.Radiobutton): sub_child.config(state="normal")
-        self._on_region_mode_change() # Update select_region_button state based on mode
-        self._on_image_format_change() # Update jpeg_quality_entry state based on format
+                        # Recursively set state for all widgets in left pane
+                        self._set_widget_state_recursive(left_pane, state)
+                    break
+        except Exception as e:
+            self.log_message(f"Warning: Could not set all widget states: {e}")
+
+        # Update special widgets
+        self._on_region_mode_change()  # Update select_region_button state based on mode
+        self._on_image_format_change()  # Update jpeg_quality_entry state based on format
+
+    def _set_widget_state_recursive(self, widget, state):
+        """Recursively set state for widget and its children"""
+        try:
+            # Skip special widgets that need custom handling
+            if widget is self.select_region_button and self.region_detection_mode.get() == "Manual":
+                widget.config(state="normal" if state == "normal" else "disabled")
+                return
+            if widget is self.jpeg_quality_entry and self.image_format_var.get() == "JPEG":
+                widget.config(state="normal" if state == "normal" else "disabled")
+                return
+
+            # Try to set state on this widget
+            try:
+                widget.config(state=state)
+            except tk.TclError:
+                pass  # Some widgets don't support state
+
+            # Recursively process children
+            try:
+                for child in widget.winfo_children():
+                    self._set_widget_state_recursive(child, state)
+            except:
+                pass
+        except Exception:
+            pass
 
 
     def log_message(self, message):

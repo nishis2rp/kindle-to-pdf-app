@@ -289,21 +289,36 @@ class AutomationCoordinator:
 
         except Exception as e:
             self.error_callback(f"An unexpected error occurred during automation: {e}")
+            import traceback
+            self.status_callback(f"Error traceback: {traceback.format_exc()}")
         finally:
-            self._allow_sleep()
+            try:
+                self._allow_sleep()
+            except Exception as e:
+                self.status_callback(f"Warning: Could not restore sleep settings: {e}")
 
             if is_fullscreen and kindle_win:
                 try:
                     if kindle_win.isNotMinimized:
                         pyautogui.press('f11')
                         time.sleep(self.EXIT_FULLSCREEN_DELAY)
+                        self.status_callback("Exited fullscreen mode.")
                 except gw.PyGetWindowException:
                     self.status_callback("Kindle window was closed manually during automation.")
-            
-            if self.root_window:
-                self.root_window.deiconify()
-                self.root_window.lift()
-                self.root_window.focus_force()
+                except Exception as e:
+                    self.status_callback(f"Warning: Could not exit fullscreen: {e}")
 
-            cleanup_dir(screenshots_folder)
+            if self.root_window:
+                try:
+                    self.root_window.deiconify()
+                    self.root_window.lift()
+                    self.root_window.focus_force()
+                except Exception as e:
+                    self.status_callback(f"Warning: Could not restore main window: {e}")
+
+            try:
+                cleanup_dir(screenshots_folder)
+            except Exception as e:
+                self.status_callback(f"Warning: Could not cleanup temporary files: {e}")
+
             self.completion_callback()
