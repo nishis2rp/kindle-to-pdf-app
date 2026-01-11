@@ -1,6 +1,12 @@
+"""
+Simplified Automation Coordinator module.
+Simplified workflow with manual region selection.
+"""
+
 import os
 import time
 import uuid
+from typing import Optional, Callable, List, Tuple
 import pyautogui
 from PIL import Image
 import mss
@@ -10,21 +16,28 @@ import pygetwindow as gw
 import threading
 import shutil
 import ctypes
+import tkinter as tk
+import tkinter.messagebox as messagebox
+from src.constants import (
+    PowerManagement,
+    Storage,
+    PageDetection,
+    PageTurnDirection,
+    Delays,
+)
 from ..utils import create_temp_dir, cleanup_dir
 from src.automation.kindle_controller import KindleController
 from .pdf_converter import PdfConverter
 
+
 class AutomationCoordinator:
-    ES_CONTINUOUS = 0x80000000
-    ES_SYSTEM_REQUIRED = 0x00000001
-    ES_DISPLAY_REQUIRED = 0x00000002
+    """Simplified coordinator for Kindle to PDF conversion"""
 
-    EXIT_FULLSCREEN_DELAY = 0.5 
-
-    def __init__(self, output_dir="Kindle_PDFs", status_callback=None, error_callback=None, 
-                 success_callback=None, completion_callback=None, preview_callback=None, 
+    def __init__(self, output_dir=None, status_callback=None, error_callback=None,
+                 success_callback=None, completion_callback=None, preview_callback=None,
                  progress_callback=None, root_window=None):
-        self.output_dir = output_dir
+        from src.constants import DefaultConfig
+        self.output_dir = output_dir if output_dir is not None else DefaultConfig.get_output_folder()
         self.status_callback = status_callback or (lambda msg: print(f"Status: {msg}"))
         self.error_callback = error_callback or (lambda msg: print(f"Error: {msg}"))
         self.success_callback = success_callback or (lambda path: print(f"Success: {path}"))
@@ -32,39 +45,78 @@ class AutomationCoordinator:
         self.preview_callback = preview_callback or (lambda path: print(f"Preview: {path}"))
         self.progress_callback = progress_callback or (lambda cur, tot: print(f"Progress: {cur}/{tot}"))
         self.root_window = root_window
-        
+
         self.kindle_controller = KindleController(self.status_callback, self.error_callback)
         self.pdf_converter = PdfConverter(self.status_callback)
-        
-        self.pause_event = threading.Event()
+
         self.stop_event = threading.Event()
-
-    def pause(self):
-        self.status_callback("Pausing...")
-        self.pause_event.set()
-
-    def resume(self):
-        self.status_callback("Resuming...")
-        self.pause_event.clear()
+        self.current_page = 0
+        self.target_pages = 0
+        self.is_running = False
 
     def stop(self):
         self.status_callback("Stopping...")
         self.stop_event.set()
-        self.pause_event.clear()
+
+    def get_progress(self):
+        """Get current progress information"""
+        return {
+            "current_page": self.current_page,
+            "target_pages": self.target_pages,
+            "is_running": self.is_running
+        }
 
     def _hash_image(self, sct_img):
+        """
+        画像のハッシュを計算（KindleControllerと同じアルゴリズム）
+        Returns: tuple (mean_value, dhash)
+        """
         img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
         img_np = np.array(img)
         gray_img = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-        return cv2.mean(gray_img)[0]
 
-    def _take_screenshots(self, pages, screenshots_folder, page_turn_delay, page_turn_direction, book_region, end_detection_sensitivity):
-        self.kindle_controller.navigate_to_first_page()
+        # 平均値
+        mean_value = cv2.mean(gray_img)[0]
+
+        # dHash
+        resized = cv2.resize(gray_img, (9, 8), interpolation=cv2.INTER_AREA)
+        diff = resized[:, 1:] > resized[:, :-1]
+        hash_value = sum([2 ** i for (i, v) in enumerate(diff.flatten()) if v])
+
+        return (mean_value, hash_value)
+
+    def _compare_hashes(self, hash1, hash2):
+        """
+        2つのハッシュを比較して差分を返す
+        Args:
+            hash1, hash2: tuples of (mean_value, dhash)
+        Returns:
+            float: difference score (higher = more different)
+        """
+        mean_diff = abs(hash1[0] - hash2[0])
+        xor = hash1[1] ^ hash2[1]
+        hamming_dist = bin(xor).count('1')
+        combined_diff = mean_diff + (hamming_dist * 2.0)
+        return combined_diff
+
+    def _take_screenshots(
+        self,
+        pages: int,
+        screenshots_folder: str,
+        page_turn_direction: str,
+        book_region: Tuple[int, int, int, int]
+    ) -> List[str]:
+        """Capture screenshots of pages."""
         image_files = []
         last_hashes = []
-        consecutive_matches = end_detection_sensitivity
+        consecutive_matches = 3  # Default end detection sensitivity
 
-        sct_monitor = { "left": book_region[0], "top": book_region[1], "width": book_region[2], "height": book_region[3] }
+        sct_monitor = {
+            "left": book_region[0],
+            "top": book_region[1],
+            "width": book_region[2],
+            "height": book_region[3]
+        }
 
         page_num = 1
         with mss.mss() as sct:
@@ -72,26 +124,32 @@ class AutomationCoordinator:
                 if self.stop_event.is_set():
                     self.status_callback("Automation stopped by user.")
                     break
-                
-                while self.pause_event.is_set():
-                    time.sleep(0.1)
-                    if self.stop_event.is_set():
-                        self.status_callback("Automation stopped by user while paused.")
-                        return []
 
+                # Update current page
+                self.current_page = page_num
                 self.progress_callback(page_num, pages)
 
-                # Wait a bit before capturing to ensure page is fully loaded
+                # Wait before capturing
                 if page_num > 1:
-                    time.sleep(0.3)  # Additional stabilization time after page turn
+                    time.sleep(Delays.PAGE_STABILIZATION)
 
                 self.status_callback(f"Capturing page {page_num}/{pages}...")
                 sct_img = sct.grab(sct_monitor)
 
                 current_hash = self._hash_image(sct_img)
-                if len(last_hashes) >= consecutive_matches and all(h == current_hash for h in last_hashes[-consecutive_matches:]):
-                    self.status_callback(f"End of book detected ({consecutive_matches} identical pages).")
-                    break
+
+                # Check for end of book (consecutive identical pages)
+                if len(last_hashes) >= consecutive_matches:
+                    # Check if last N pages are very similar (diff < threshold)
+                    recent_hashes = last_hashes[-consecutive_matches:]
+                    all_similar = all(
+                        self._compare_hashes(current_hash, prev_hash) < PageDetection.HASH_DIFF_THRESHOLD
+                        for prev_hash in recent_hashes
+                    )
+                    if all_similar:
+                        self.status_callback(f"End of book detected ({consecutive_matches} identical pages).")
+                        break
+
                 last_hashes.append(current_hash)
 
                 image_path = os.path.join(screenshots_folder, f"page_{page_num:04d}.png")
@@ -105,184 +163,237 @@ class AutomationCoordinator:
                     self.status_callback(f"Reached user-defined page limit of {pages}.")
                     break
 
-                # Use keyDown/keyUp for more reliable page turning
+                # Turn page
                 self.status_callback(f"Turning page with {page_turn_direction} arrow key...")
                 pyautogui.keyDown(page_turn_direction)
-                time.sleep(0.1)
+                time.sleep(Delays.KEY_PRESS)
                 pyautogui.keyUp(page_turn_direction)
 
-                # Wait for page turn animation and content load
-                time.sleep(page_turn_delay)
+                time.sleep(Delays.PAGE_TURN)
                 page_num += 1
         return image_files
 
-    def _check_disk_space(self, output_folder, estimated_pages):
-        ESTIMATED_BYTES_PER_PAGE = 2 * 1024 * 1024
-        PDF_OVERHEAD_FACTOR = 1.1
-
-        estimated_total_bytes_needed = estimated_pages * ESTIMATED_BYTES_PER_PAGE * PDF_OVERHEAD_FACTOR
+    def _check_disk_space(self, output_folder: str, estimated_pages: int) -> bool:
+        """Check if sufficient disk space is available."""
+        estimated_total_bytes_needed = (
+            estimated_pages *
+            Storage.ESTIMATED_BYTES_PER_PAGE *
+            Storage.PDF_OVERHEAD_FACTOR
+        )
 
         os.makedirs(output_folder, exist_ok=True)
-        
+
         try:
             total, used, free = shutil.disk_usage(output_folder)
             self.status_callback(f"Disk space check: Free space {free / (1024**3):.2f} GB, Estimated needed: {estimated_total_bytes_needed / (1024**3):.2f} GB")
 
             if free < estimated_total_bytes_needed:
-                self.error_callback(f"Insufficient disk space in '{output_folder}'. "
-                                    f"Needed {estimated_total_bytes_needed / (1024**3):.2f} GB, "
-                                    f"Available {free / (1024**3):.2f} GB.")
+                self.error_callback(
+                    f"Insufficient disk space in '{output_folder}'.\n"
+                    f"Needed {estimated_total_bytes_needed / (1024**3):.2f} GB, "
+                    f"Available {free / (1024**3):.2f} GB."
+                )
                 return False
             return True
         except Exception as e:
             self.error_callback(f"Could not check disk space: {e}")
             return False
 
-    def _prevent_sleep(self):
+    def _prevent_sleep(self) -> None:
+        """Prevent system from sleeping during automation"""
         ctypes.windll.kernel32.SetThreadExecutionState(
-            AutomationCoordinator.ES_CONTINUOUS |
-            AutomationCoordinator.ES_SYSTEM_REQUIRED |
-            AutomationCoordinator.ES_DISPLAY_REQUIRED
+            PowerManagement.ES_CONTINUOUS |
+            PowerManagement.ES_SYSTEM_REQUIRED |
+            PowerManagement.ES_DISPLAY_REQUIRED
         )
         self.status_callback("OS sleep prevention activated.")
 
-    def _allow_sleep(self):
-        ctypes.windll.kernel32.SetThreadExecutionState(AutomationCoordinator.ES_CONTINUOUS)
+    def _allow_sleep(self) -> None:
+        """Allow system to sleep after automation"""
+        ctypes.windll.kernel32.SetThreadExecutionState(PowerManagement.ES_CONTINUOUS)
         self.status_callback("OS sleep prevention deactivated.")
 
-    def test_capture(self, region_detection_mode: str, manual_capture_region: list = None, **kwargs):
-        self.status_callback("Running test capture...")
-        kindle_win = None
-        temp_dir = None
+    def _select_region_manual(self, kindle_win, monitor=None) -> Optional[Tuple[int, int, int, int]]:
+        """Let user manually select capture region"""
+        self.status_callback("Please select the capture region on your Kindle window...")
+
+        # Variable to store the selected region
+        selected_region = [None]
+
         try:
-            kindle_windows = gw.getWindowsWithTitle('Kindle')
-            if not kindle_windows:
-                self.error_callback("Kindle app window not found.")
-                return
-            kindle_win = kindle_windows[0]
+            # Use provided monitor, or detect it from window
+            if not monitor and kindle_win:
+                monitor = self.kindle_controller.get_monitor_for_window(kindle_win)
 
-            book_region_dict = None
-            if region_detection_mode == "Manual":
-                if manual_capture_region and len(manual_capture_region) == 4:
-                    self.status_callback("Using manual region for test capture.")
-                    book_region_dict = {"left": manual_capture_region[0], "top": manual_capture_region[1], "width": manual_capture_region[2], "height": manual_capture_region[3]}
-                else:
-                    self.error_callback("Manual region mode selected, but region is invalid.")
-                    return
+            if monitor:
+                self.status_callback(f"Opening region selector on monitor at ({monitor['left']}, {monitor['top']})")
             else:
-                self.status_callback("Using automatic detection for test capture.")
-                if kindle_win.isMinimized: kindle_win.restore()
-                kindle_win.activate()
-                time.sleep(0.5)
-                book_region_dict = self.kindle_controller.get_book_region(kindle_win)
+                self.status_callback("Could not detect monitor, using primary monitor")
 
-            if not book_region_dict:
-                self.error_callback("Failed to determine book capture region for test.")
-                return
+            # Import RegionSelector here to avoid circular imports
+            from src.gui.region_selector import RegionSelector
 
-            sct_monitor = { "left": book_region_dict["left"], "top": book_region_dict["top"], "width": book_region_dict["width"], "height": book_region_dict["height"] }
+            # Define callback for when selection is complete
+            def on_selection_complete(region):
+                selected_region[0] = region
 
-            with mss.mss() as sct:
-                sct_img = sct.grab(sct_monitor)
-                
-                temp_dir = create_temp_dir(self.output_dir, prefix="test_capture_")
-                image_path = os.path.join(temp_dir, f"test_capture_{uuid.uuid4()}.png")
+            # Use the existing root window if available, otherwise create a temporary one
+            if self.root_window:
+                # Use existing root window
+                selector = RegionSelector(self.root_window, on_selection_complete, monitor=monitor)
+                # Wait for the selector window to close
+                self.root_window.wait_window(selector.selector_window)
+            else:
+                # Fallback: create temporary root window
+                temp_root = tk.Tk()
+                temp_root.withdraw()
+                selector = RegionSelector(temp_root, on_selection_complete, monitor=monitor)
+                temp_root.wait_window(selector.selector_window)
+                temp_root.destroy()
 
-                img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
-                img.save(image_path)
-                
-                self.status_callback("Test capture successful.")
-                self.preview_callback(image_path)
+            # Check if a region was selected
+            if selected_region[0]:
+                left, top, width, height = selected_region[0]
+                self.status_callback(f"Region selected: {width}x{height} at ({left}, {top})")
+                return (left, top, width, height)
+            else:
+                self.error_callback("No region selected.")
+                return None
 
         except Exception as e:
-            self.error_callback(f"Test capture failed: {e}")
-        finally:
-            cleanup_dir(temp_dir)
+            self.error_callback(f"Region selection failed: {e}")
+            import traceback
+            self.status_callback(f"Traceback: {traceback.format_exc()}")
+            return None
 
-    def run(self, pages: int, optimize_images: bool, page_turn_direction: str,
-            page_turn_delay: float, kindle_startup_delay: float, 
-            window_activation_delay: float, fullscreen_delay: float, 
-            navigation_delay: float, region_detection_mode: str, 
-            manual_capture_region: list = None, output_folder: str = "Kindle_PDFs", 
-            output_filename: str = "My_Kindle_Book.pdf", image_format: str = "PNG", 
-            jpeg_quality: int = 90, end_detection_sensitivity: int = 3, **kwargs):
-        
+    def run(self, pages: int, output_folder: str = None,
+            output_filename: str = None, **kwargs):
+        """
+        Simplified automation run with manual region selection.
+
+        Args:
+            pages: Number of pages to capture
+            output_folder: Output directory (defaults to Downloads folder)
+            output_filename: Output PDF filename (defaults to yyyymmdd.pdf)
+        """
+        from src.constants import DefaultConfig
+
+        # Set defaults if not provided
+        if output_folder is None:
+            output_folder = DefaultConfig.get_output_folder()
+        if output_filename is None:
+            output_filename = DefaultConfig.get_output_filename()
+
         self.stop_event.clear()
-        self.pause_event.clear()
-        
+        self.target_pages = pages
+        self.current_page = 0
+        self.is_running = True
+
         kindle_win = None
-        is_fullscreen = False
         screenshots_folder = None
-        
+
+        # Prompt user to prepare Kindle
+        while True:
+            user_response = messagebox.askokcancel(
+                "準備確認",
+                "Kindleアプリを立ち上げて、対象書籍のスタートページに移動してください。\n\n"
+                "準備ができたら「OK」を押してください。"
+            )
+
+            if not user_response:
+                self.status_callback("User cancelled the automation.")
+                self.completion_callback()
+                return
+
+            # Check for Kindle window
+            self.status_callback("Checking for Kindle window...")
+            temp_kindle_win = self.kindle_controller._get_kindle_window()
+
+            if not temp_kindle_win:
+                retry = messagebox.askretrycancel(
+                    "Kindleアプリが見つかりません",
+                    "Kindleアプリが起動していないか、書籍が開かれていません。\n\n"
+                    "以下を確認してください：\n"
+                    "1. Kindleアプリが起動している\n"
+                    "2. 書籍が開かれている（ライブラリ画面ではない）\n"
+                    "3. 対象書籍のスタートページに移動している\n\n"
+                    "「再試行」を押して再度確認するか、「キャンセル」で中止してください。"
+                )
+
+                if not retry:
+                    self.status_callback("User cancelled the automation after Kindle check failed.")
+                    self.completion_callback()
+                    return
+                continue
+            else:
+                self.status_callback("Kindle window found successfully.")
+                break
+
         self.status_callback("Automation started.")
         self._prevent_sleep()
-        
+
         try:
+            # Check disk space
             self.status_callback(f"Checking disk space in '{output_folder}'...")
             if not self._check_disk_space(output_folder, pages):
                 self.error_callback("Disk space check failed. Aborting automation.")
                 return
             self.status_callback("Disk space check passed.")
-            
-            self.kindle_controller.KINDLE_STARTUP_DELAY = kindle_startup_delay
-            self.kindle_controller.WINDOW_ACTIVATION_DELAY = window_activation_delay
-            self.kindle_controller.FULLSCREEN_DELAY = fullscreen_delay
-            self.kindle_controller.NAVIGATION_DELAY = navigation_delay
-            self.kindle_controller.PAGE_TURN_DELAY = page_turn_delay
 
-            self.status_callback("Launching and activating Kindle application...")
-            kindle_win, _ = self.kindle_controller.launch_and_activate_kindle()
-            if not kindle_win: 
-                self.error_callback("Kindle application could not be launched or activated. Aborting automation.")
+            # Activate Kindle window
+            self.status_callback("Activating Kindle window...")
+            kindle_win, monitor = self.kindle_controller.find_and_activate_kindle()
+            if not kindle_win:
+                self.error_callback("Kindle window could not be activated. Aborting automation.")
                 return
-            self.status_callback("Kindle application launched and activated.")
-            is_fullscreen = True
+            self.status_callback("Kindle window activated.")
 
-            book_region_dict = None
-            if region_detection_mode == "Manual":
-                self.status_callback("Using manual region detection mode.")
-                if manual_capture_region and len(manual_capture_region) == 4:
-                    self.status_callback(f"Using user-defined manual capture region: {manual_capture_region}")
-                    book_region_dict = {"left": manual_capture_region[0], "top": manual_capture_region[1], "width": manual_capture_region[2], "height": manual_capture_region[3]}
-                else:
-                    self.error_callback("Manual region mode selected, but region is invalid or not set. Aborting automation.")
-                    return
-            else:
-                self.status_callback("Using automatic region detection mode.")
-                book_region_dict = self.kindle_controller.get_book_region(kindle_win)
-            
-            if not book_region_dict:
-                self.error_callback("Failed to determine book capture region. Aborting automation.")
+            # Bring Kindle window to front and ensure it's visible
+            self.status_callback("Bringing Kindle window to front...")
+            try:
+                import time
+                kindle_win.activate()
+                time.sleep(0.5)
+                # Set as foreground window using Windows API
+                import ctypes
+                hwnd = ctypes.windll.user32.FindWindowW(None, kindle_win.title)
+                if hwnd:
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    time.sleep(0.5)
+                self.status_callback("Kindle window is now in front.")
+            except Exception as e:
+                self.status_callback(f"Warning: Could not bring Kindle to front: {e}")
+
+            # Manual region selection
+            self.status_callback("Starting manual region selection...")
+            book_region = self._select_region_manual(kindle_win, monitor)
+
+            if not book_region:
+                self.error_callback("Region selection failed. Aborting automation.")
                 return
-            self.status_callback(f"Book capture region determined: {book_region_dict}")
 
-            direction_key = None
-            if page_turn_direction == "Automatic":
-                self.status_callback("Determining page turn direction automatically...")
-                direction_key = self.kindle_controller.determine_page_turn_direction(kindle_win)
-            elif page_turn_direction == "LtoR":
-                self.status_callback("User selected Left-to-Right page turning.")
-                direction_key = 'left'
-            elif page_turn_direction == "RtoL":
-                self.status_callback("User selected Right-to-Left page turning.")
-                direction_key = 'right'
+            self.status_callback(f"Capture region: {book_region[2]}x{book_region[3]} at ({book_region[0]}, {book_region[1]})")
+
+            # Determine page turn direction automatically
+            self.status_callback("Determining page turn direction automatically...")
+            direction_key = self.kindle_controller.determine_page_turn_direction(kindle_win)
 
             if not direction_key:
                 self.error_callback("Could not determine page turn direction. Aborting automation.")
                 return
             self.status_callback(f"Page turn direction determined: {direction_key}")
 
+            # Start screenshot capture
             self.status_callback("Starting screenshot process...")
             time.sleep(3)
-            
-            if self.stop_event.is_set(): 
+
+            if self.stop_event.is_set():
                 self.status_callback("Automation stopped before screenshots began.")
                 return
 
             screenshots_folder = create_temp_dir(output_folder, prefix="temp_screenshots_")
-            
-            book_region_tuple = (book_region_dict["left"], book_region_dict["top"], book_region_dict["width"], book_region_dict["height"])
-            image_files = self._take_screenshots(pages, screenshots_folder, page_turn_delay, direction_key, book_region_tuple, end_detection_sensitivity)
+
+            image_files = self._take_screenshots(pages, screenshots_folder, direction_key, book_region)
 
             if self.stop_event.is_set():
                 self.status_callback("Automation stopped during screenshot capture.")
@@ -292,9 +403,14 @@ class AutomationCoordinator:
                 return
             self.status_callback(f"{len(image_files)} images captured.")
 
+            # Create PDF
             self.status_callback("Creating PDF from captured images...")
-            pdf_path = self.pdf_converter.create_pdf_from_images(image_files, output_folder, output_filename, 
-                                                                 optimize_images, image_format, jpeg_quality)
+            pdf_path = self.pdf_converter.create_pdf_from_images(
+                image_files, output_folder, output_filename,
+                optimize_images=True,  # Always optimize
+                image_format="PNG",    # Always PNG
+                jpeg_quality=90
+            )
             self.success_callback(pdf_path)
             self.status_callback("Automation finished successfully.")
 
@@ -307,17 +423,6 @@ class AutomationCoordinator:
                 self._allow_sleep()
             except Exception as e:
                 self.status_callback(f"Warning: Could not restore sleep settings: {e}")
-
-            if is_fullscreen and kindle_win:
-                try:
-                    if kindle_win.isNotMinimized:
-                        pyautogui.press('f11')
-                        time.sleep(self.EXIT_FULLSCREEN_DELAY)
-                        self.status_callback("Exited fullscreen mode.")
-                except gw.PyGetWindowException:
-                    self.status_callback("Kindle window was closed manually during automation.")
-                except Exception as e:
-                    self.status_callback(f"Warning: Could not exit fullscreen: {e}")
 
             if self.root_window:
                 try:
@@ -332,4 +437,5 @@ class AutomationCoordinator:
             except Exception as e:
                 self.status_callback(f"Warning: Could not cleanup temporary files: {e}")
 
+            self.is_running = False
             self.completion_callback()

@@ -1,9 +1,15 @@
+"""
+Main application entry point for Kindle to PDF converter.
+"""
+
 import customtkinter as ctk
-from .gui.main_window import MainWindow
-from .automation.automation_coordinator import AutomationCoordinator
-from .hotkey_listener import start_hotkey_listener
+from src.constants import DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
+from src.gui.main_window import MainWindow
+from src.automation.automation_coordinator import AutomationCoordinator
+from src.hotkey_listener import start_hotkey_listener
 
 def main():
+    """Initialize and run the Kindle to PDF application"""
     # Set appearance mode and color theme
     ctk.set_appearance_mode("System")  # Modes: system, light, dark
     ctk.set_default_color_theme("blue")  # Themes: blue, dark-blue, green
@@ -11,16 +17,17 @@ def main():
     root = ctk.CTk()
     root.title("Kindle to PDF")
 
-    window_width = 1000
-    window_height = 700
+    # Window dimensions and positioning
+    window_width = DEFAULT_WINDOW_WIDTH
+    window_height = DEFAULT_WINDOW_HEIGHT
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width // 2) - (window_width // 2)
     y = (screen_height // 2) - (window_height // 2)
     root.geometry(f'{window_width}x{window_height}+{x}+{y}')
 
-    # Set minimum window size
-    root.minsize(900, 650)
+    # Set minimum window size (increased height to ensure log is always visible)
+    root.minsize(900, 700)
 
     main_window_frame = MainWindow(master=root)
     main_window_frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -38,7 +45,6 @@ def main():
 
     # Set the command that the GUI's start button will execute
     main_window_frame.start_command = automation.run
-    main_window_frame.test_capture_command = automation.test_capture
     main_window_frame.automation = automation # Give the GUI a reference to the coordinator
 
     # Start the global hotkey listener

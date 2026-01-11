@@ -1,52 +1,89 @@
+"""
+Configuration management module.
+Handles loading, saving, and validation of application configuration.
+"""
+
 import json
 import os
+from typing import Dict, Any
+from src.constants import Storage, DefaultConfig
+from src.config_validator import ConfigValidator, ConfigValidationError
 
-CONFIG_FILE = "config.json"
+CONFIG_FILE = Storage.CONFIG_FILENAME
 
-def get_default_config():
-    """Returns a dictionary with the default configuration values."""
+def get_default_config() -> Dict[str, Any]:
+    """
+    Get default configuration values (simplified).
+
+    Returns:
+        Dictionary containing default configuration
+    """
     return {
-        "pages": 100,
-        "optimize_images": True,
-        "page_turn_delay": 3,  # Increased from 1.5 to 3 for better page turn detection
-        "kindle_startup_delay": 10,
-        "window_activation_delay": 3,
-        "fullscreen_delay": 3,
-        "navigation_delay": 7,
-        "page_turn_direction": "Automatic", # Options: "Automatic", "LtoR", "RtoL"
-        "region_detection_mode": "Automatic", # Options: "Automatic", "Manual"
-        "manual_capture_region": None, # Stored as [x, y, w, h]
-        "output_folder": "Kindle_PDFs",
-        "output_filename": "My_Kindle_Book.pdf",
-        "image_format": "PNG", # Options: "PNG", "JPEG"
-        "jpeg_quality": 90, # For JPEG format, 0-100
-        "end_detection_sensitivity": 3 # Number of consecutive identical pages to detect end of book
+        "pages": DefaultConfig.PAGES,
+        "output_folder": DefaultConfig.get_output_folder(),
+        "output_filename": DefaultConfig.get_output_filename(),
     }
 
-def load_config():
-    """Loads the configuration from config.json. If the file doesn't exist, returns default config."""
+def load_config() -> Dict[str, Any]:
+    """
+    Load configuration from file with validation.
+
+    Returns:
+        Configuration dictionary (defaults if file doesn't exist or is invalid)
+    """
     if not os.path.exists(CONFIG_FILE):
         return get_default_config()
-    
+
     try:
-        with open(CONFIG_FILE, "r") as f:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
-            # Ensure all default keys are present
+
+            # Merge with defaults for missing keys
             defaults = get_default_config()
             for key, value in defaults.items():
                 if key not in config:
                     config[key] = value
+
+            # Validate configuration
+            is_valid, error_message = ConfigValidator.validate_config(config)
+            if not is_valid:
+                print(f"Config validation warning: {error_message}")
+                print("Using default configuration instead.")
+                return get_default_config()
+
             return config
-    except (json.JSONDecodeError, IOError):
-        # If file is corrupted or unreadable, return defaults
+
+    except json.JSONDecodeError as e:
+        print(f"Error parsing config file: {e}. Using default configuration.")
+        return get_default_config()
+    except IOError as e:
+        print(f"Error reading config file: {e}. Using default configuration.")
         return get_default_config()
 
-def save_config(config):
-    """Saves the given configuration dictionary to config.json."""
+
+def save_config(config: Dict[str, Any]) -> bool:
+    """
+    Save configuration to file after validation.
+
+    Args:
+        config: Configuration dictionary to save
+
+    Returns:
+        True if save successful, False otherwise
+    """
     try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=4)
+        # Validate before saving
+        ConfigValidator.validate_and_raise(config)
+
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+
+        return True
+
+    except ConfigValidationError as e:
+        print(f"Configuration validation error: {e}")
+        return False
     except IOError as e:
-        # Handle cases where the file cannot be written
         print(f"Error saving config file: {e}")
+        return False
 
