@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.\\venv\\Scripts\\python.exe:*)",
+      "Bash(python:*)",
+      "Bash(if [ -f \"venv/Scripts/python.exe\" ])",
+      "Bash(then ./venv/Scripts/python.exe -c \"from src.automation.kindle_controller import KindleController; print(''Import successful!'')\")",
+      "Bash(else python -m venv venv)",
+      "Bash(fi)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(if [ -d \"dist\" ])",
+      "Bash(then rm -rf dist)",
+      "Bash(if [ -d \"build\" ])",
+      "Bash(then rm -rf build)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: Improve multi-monitor support and page turn detection\n\nMajor improvements:\n- Enhanced window detection filtering to exclude app''s own window\n- Lowered region detection threshold from 30% to 15% for better compatibility\n- Increased hash threshold from 0.5 to 5.0 for reliable page turn detection\n- Added multi-monitor support with cursor movement and detailed logging\n- Improved Kindle auto-launch with better path detection and verification\n- Added comprehensive error handling and fallback logic\n- Created separate ToolTip module for better code organization\n- Added input validation for numeric fields in GUI\n- Enhanced status messages with detailed debugging information\n\nBug fixes:\n- Fixed window detection catching own app window (added filtering)\n- Fixed region detection failures with improved fallback logic\n- Fixed page turn direction detection with better hash comparison\n- Fixed Unicode encoding errors in debug output\n- Fixed dict attribute error in settings state management\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "WebSearch",
+      "WebFetch(domain:customtkinter.tomschimansky.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(.\\venv\\Scripts\\python.exe -m pip install:*)",
+      "Bash(./KindleToPdfApp.exe)",
+      "Bash(if [ -d \"dist/KindleToPdfApp_final\" ])",
+      "Bash(then rm -rf dist/KindleToPdfApp_final)",
+      "Bash(git commit:*)",
+      "Bash(git tag -a v1.2.0 -m \"Version 1.2.0 - Modern GUI and capture fixes\")",
+      "Bash(.\\venv\\Scripts\\python.exe -m PyInstaller:*)",
+      "Bash(then mv dist dist_old)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(.\\venv\\Scripts\\python.exe -m src.app:*)",
+      "Bash(then ./venv/Scripts/python.exe -m src.app)",
+      "Bash(else python -m src.app)",
+      "Bash(test:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(rm:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

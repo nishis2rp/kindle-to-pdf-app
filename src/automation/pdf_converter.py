@@ -2,13 +2,11 @@ import img2pdf
 from PIL import Image
 import os
 import time
+from src.callback_utils import get_callback_or_default
 
 class PdfConverter:
     def __init__(self, status_callback=None):
-        self.status_callback = status_callback if status_callback else self._default_status_callback
-
-    def _default_status_callback(self, message):
-        print(f"Status: {message}")
+        self.status_callback = get_callback_or_default(status_callback, "Status")
 
     def optimize_image(self, image_path, output_path, image_format="PNG", jpeg_quality=90):
         """Optimize a single image (convert to grayscale, resize, change format)"""

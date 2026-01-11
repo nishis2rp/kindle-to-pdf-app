@@ -10,24 +10,22 @@ from typing import Optional, Callable, List, Tuple
 import pyautogui
 from PIL import Image
 import mss
-import cv2
-import numpy as np
-import pygetwindow as gw
+import tkinter as tk
+import tkinter.messagebox as messagebox
 import threading
 import shutil
 import ctypes
-import tkinter as tk
-import tkinter.messagebox as messagebox
 from src.constants import (
     PowerManagement,
     Storage,
     PageDetection,
-    PageTurnDirection,
     Delays,
 )
 from ..utils import create_temp_dir, cleanup_dir
 from src.automation.kindle_controller import KindleController
 from .pdf_converter import PdfConverter
+from src.image_hasher import ImageHasher
+from src.callback_utils import get_callback_or_default
 
 
 class AutomationCoordinator:
@@ -38,8 +36,8 @@ class AutomationCoordinator:
                  progress_callback=None, root_window=None):
         from src.constants import DefaultConfig
         self.output_dir = output_dir if output_dir is not None else DefaultConfig.get_output_folder()
-        self.status_callback = status_callback or (lambda msg: print(f"Status: {msg}"))
-        self.error_callback = error_callback or (lambda msg: print(f"Error: {msg}"))
+        self.status_callback = get_callback_or_default(status_callback, "Status")
+        self.error_callback = get_callback_or_default(error_callback, "Error")
         self.success_callback = success_callback or (lambda path: print(f"Success: {path}"))
         self.completion_callback = completion_callback or (lambda: print("Complete."))
         self.preview_callback = preview_callback or (lambda path: print(f"Preview: {path}"))
@@ -65,39 +63,6 @@ class AutomationCoordinator:
             "target_pages": self.target_pages,
             "is_running": self.is_running
         }
-
-    def _hash_image(self, sct_img):
-        """
-        画像のハッシュを計算（KindleControllerと同じアルゴリズム）
-        Returns: tuple (mean_value, dhash)
-        """
-        img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
-        img_np = np.array(img)
-        gray_img = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-
-        # 平均値
-        mean_value = cv2.mean(gray_img)[0]
-
-        # dHash
-        resized = cv2.resize(gray_img, (9, 8), interpolation=cv2.INTER_AREA)
-        diff = resized[:, 1:] > resized[:, :-1]
-        hash_value = sum([2 ** i for (i, v) in enumerate(diff.flatten()) if v])
-
-        return (mean_value, hash_value)
-
-    def _compare_hashes(self, hash1, hash2):
-        """
-        2つのハッシュを比較して差分を返す
-        Args:
-            hash1, hash2: tuples of (mean_value, dhash)
-        Returns:
-            float: difference score (higher = more different)
-        """
-        mean_diff = abs(hash1[0] - hash2[0])
-        xor = hash1[1] ^ hash2[1]
-        hamming_dist = bin(xor).count('1')
-        combined_diff = mean_diff + (hamming_dist * 2.0)
-        return combined_diff
 
     def _take_screenshots(
         self,
@@ -136,14 +101,14 @@ class AutomationCoordinator:
                 self.status_callback(f"Capturing page {page_num}/{pages}...")
                 sct_img = sct.grab(sct_monitor)
 
-                current_hash = self._hash_image(sct_img)
+                current_hash = ImageHasher.hash_image(sct_img)
 
                 # Check for end of book (consecutive identical pages)
                 if len(last_hashes) >= consecutive_matches:
                     # Check if last N pages are very similar (diff < threshold)
                     recent_hashes = last_hashes[-consecutive_matches:]
                     all_similar = all(
-                        self._compare_hashes(current_hash, prev_hash) < PageDetection.HASH_DIFF_THRESHOLD
+                        ImageHasher.compare_hashes(current_hash, prev_hash) < PageDetection.HASH_DIFF_THRESHOLD
                         for prev_hash in recent_hashes
                     )
                     if all_similar:

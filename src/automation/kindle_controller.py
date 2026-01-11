@@ -20,6 +20,8 @@ from src.constants import (
     PageTurnDirection,
     ErrorMessages
 )
+from src.image_hasher import ImageHasher
+from src.callback_utils import get_callback_or_default
 
 class KindleController:
     """
@@ -39,8 +41,8 @@ class KindleController:
             status_callback: Function to call with status messages
             error_callback: Function to call with error messages
         """
-        self.status_callback = status_callback if status_callback else self._default_status_callback
-        self.error_callback = error_callback if error_callback else self._default_error_callback
+        self.status_callback = get_callback_or_default(status_callback, "Status")
+        self.error_callback = get_callback_or_default(error_callback, "Error")
 
         # Set instance delay values (can be overridden from constants)
         self.WINDOW_RESTORE_DELAY = Delays.WINDOW_RESTORE
@@ -50,14 +52,6 @@ class KindleController:
         # Configure PyAutoGUI
         pyautogui.PAUSE = PyAutoGUIConfig.PAUSE
         pyautogui.FAILSAFE = PyAutoGUIConfig.FAILSAFE
-
-    def _default_status_callback(self, message: str) -> None:
-        """Default status callback prints to console"""
-        print(f"Status: {message}")
-
-    def _default_error_callback(self, message: str) -> None:
-        """Default error callback prints to console"""
-        print(f"Error: {message}")
 
     def get_monitor_for_window(self, window):
         with mss.mss() as sct:
@@ -296,50 +290,12 @@ class KindleController:
 
     def _hash_image(self, screenshot_region):
         """
-        指定された領域のスクリーンショットを撮り、複数の特徴値を返す
+        指定された領域のスクリーンショットを撮り、ハッシュを返す
         Returns: tuple (mean_value, histogram_hash)
         """
         with mss.mss() as sct:
             sct_img = sct.grab(screenshot_region)
-            img = Image.frombytes("RGB", sct_img.size, sct_img.rgb)
-            # OpenCVで処理するためにPIL.Imageをnumpy配列に変換
-            img_np = np.array(img)
-            # グレースケールに変換
-            gray_img = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-
-            # 平均値（従来の方法）
-            mean_value = cv2.mean(gray_img)[0]
-
-            # ヒストグラムベースのハッシュ（より堅牢）
-            # 画像を8x8にリサイズして、dHash風のアプローチ
-            resized = cv2.resize(gray_img, (9, 8), interpolation=cv2.INTER_AREA)
-            # 横方向の差分を計算
-            diff = resized[:, 1:] > resized[:, :-1]
-            # ビット列としてハッシュ化
-            hash_value = sum([2 ** i for (i, v) in enumerate(diff.flatten()) if v])
-
-            return (mean_value, hash_value)
-
-    def _compare_hashes(self, hash1, hash2):
-        """
-        2つのハッシュを比較して差分を返す
-        Args:
-            hash1, hash2: tuples of (mean_value, histogram_hash)
-        Returns:
-            float: difference score (higher = more different)
-        """
-        mean_diff = abs(hash1[0] - hash2[0])
-
-        # Hamming distance for dHash
-        xor = hash1[1] ^ hash2[1]
-        hamming_dist = bin(xor).count('1')
-
-        # Combine both metrics (weighted)
-        # Mean diff is 0-255 range, hamming is 0-64 range
-        # Normalize and combine
-        combined_diff = mean_diff + (hamming_dist * 2.0)
-
-        return combined_diff
+            return ImageHasher.hash_image(sct_img)
 
     def determine_page_turn_direction(self, kindle_win):
         self.status_callback("Determining page turn direction...")
@@ -433,7 +389,7 @@ class KindleController:
         time.sleep(self.PAGE_TURN_DELAY)
 
         after_right_hash = self._hash_image(sct_monitor)
-        right_diff = self._compare_hashes(initial_hash, after_right_hash)
+        right_diff = ImageHasher.compare_hashes(initial_hash, after_right_hash)
         self.status_callback(f"After RIGHT arrow: mean={after_right_hash[0]:.2f}, dhash={after_right_hash[1]} (diff: {right_diff:.2f})")
 
         # Save debug image after RIGHT arrow
@@ -468,7 +424,7 @@ class KindleController:
 
         # 元のページに戻ったか確認
         current_hash = self._hash_image(sct_monitor)
-        back_diff = self._compare_hashes(initial_hash, current_hash)
+        back_diff = ImageHasher.compare_hashes(initial_hash, current_hash)
         self.status_callback(f"After LEFT return: mean={current_hash[0]:.2f}, dhash={current_hash[1]} (diff: {back_diff:.2f})")
 
         if back_diff > PageDetection.HASH_DIFF_THRESHOLD:
@@ -495,7 +451,7 @@ class KindleController:
         time.sleep(self.PAGE_TURN_DELAY)
 
         after_left_hash = self._hash_image(sct_monitor)
-        left_diff = self._compare_hashes(initial_hash, after_left_hash)
+        left_diff = ImageHasher.compare_hashes(initial_hash, after_left_hash)
         self.status_callback(f"After LEFT arrow: mean={after_left_hash[0]:.2f}, dhash={after_left_hash[1]} (diff: {left_diff:.2f})")
 
         # Save debug image after LEFT arrow
